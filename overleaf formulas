@@ -1,0 +1,162 @@
+\documentclass{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage{ upgreek }
+\usepackage{mathpartir}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{tcolorbox}
+\begin{document}
+ 
+$\forall a. List\:a \sim > Set\:a\\ \\ \\
+\big[0,1,1,2,3,5,8\big] \sim > \{0,1,2,3,5,8\}$ \\ \\
+
+\[
+  \frac{\begin{array}{@{}c@{}}
+   (i: \tau_{1} \sim >\tau_{2}) \in I\\
+   
+  \end{array}}
+  {I \vDash_{i} \tau_{1} \sim > \tau_{2}}
+\]
+
+\[
+  \frac{\begin{array}{@{}c@{}}
+   (i:\forall \overline{a}. \tau_{1} \sim >\tau_{2}) \in I\\
+   
+  \end{array}}
+  {I \vDash_{i} [\overline{a}\rightarrow\overline{\tau}]\tau_{1} \sim > [\overline{a}\rightarrow\overline{\tau}]\tau_{2}}
+\]
+
+\[
+  \frac{\begin{array}{@{}c@{}}
+   I \: \vDash_{i} \tau_{1} \sim > \tau_{2} \\
+   I; \Upgamma \vdash e1 : \tau_{2} \sim > \tau_{3}\\
+   I; \Upgamma \vdash e2 : \tau_{1}
+  \end{array}}
+  {I; \Upgamma \vdash e1 \: e2 : \tau_{3}}
+\]
+
+\[
+  \frac{\begin{array}{@{}c@{}}
+   I \: \vDash_{i} \tau_{1} \sim > \tau_{2} \\
+   I; \Upgamma \vdash e1 : \tau_{2} \sim > \tau_{3}\\
+   I; \Upgamma \vdash e2 : \tau_{1} \\
+   $*AND$\\
+   $We need to use $I \: \vDash_{i} \tau_{1} \sim > \tau_{2}
+  \end{array}}
+  {I; \Upgamma \vdash e1 \: e2 : \tau_{3}}
+\]
+
+\[
+  \frac{\begin{array}{@{}c@{}}
+   I \: \vDash_{i} \tau_{1} \sim > \tau_{2} \\
+   (K : \forall a. \overline{\tau} \sim > T \: a)  \in \Upgamma \\
+   I; \Upgamma \vdash e2 : \tau_{1} \\
+   $*AND$\\
+   $We need to use $I \: \vDash_{i} \tau_{1} \sim > \tau_{2}
+  \end{array}}
+  {I; \Upgamma \vdash e1 \: e2 : \tau_{3}}
+\]
+
+\[
+  \frac{\begin{array}{@{}c@{}}
+   K : \forall a. \overline{\tau} \rightarrow T\:a\\
+   I \: \vDash_{i} \tau_{1} \sim > T\:\tau_{2} \\
+   I; \Upgamma \vdash e1 : \tau_{1} \\
+   I; \Upgamma, \overline{x}: [a\rightarrow\tau_{2}]\overline{\tau} \vdash e2 : \tau_{2} \\
+   \end{array}}
+  {I; \Upgamma \vdash case \: e1 \: of \: (K  \: \overline{x}) \rightarrow e2 : \tau_{3}}
+\]
+
+\[
+  \frac{\begin{array}{@{}c@{}}
+   I \: \vDash_{i} \tau_{1} \sim > \tau_{2} \\
+   I \: \vDash_{i} \tau_{2} \sim > \tau_{3}
+  \end{array}}
+  {I \: \vDash_{i} \tau_{1} \sim > \tau_{3}}
+\]
+
+\[
+  \frac{\begin{array}{@{}c@{}}
+    I \: \vDash_{i}^{1} \tau_{1} \sim > \tau_{2} \\
+    \tau_{2} \notin \overline{\tau} \\
+   \overline{\tau},\tau_{1};I \: \vDash_{i} \tau_{2} \sim > \tau_{3}
+  \end{array}}
+  {\overline{\tau};I \: \vDash_{i} \tau_{1} \sim > \tau_{3}}
+\]
+
+\[
+  \frac{\begin{array}{@{}c@{}}
+   I \:\vDash_{i} B_{1} \sim > A_{1} \\
+   I \:\vDash_{i} A_{2} \sim > B_{2} \\
+  \end{array}}
+  {   I\:\vDash_{i} (A_{1} \rightarrow A_{2}) \sim > (B_{1} \rightarrow B_{2}) \\
+}
+\]
+
+\[
+  \frac{I \: \vDash_{i} \tau_{1} \sim > \tau_{2}}{I \: \vDash T \: \tau_{1} \sim >  T \: \tau_{2}}
+\]
+
+\[
+\frac{}{ I\:\vDash_{i} \tau \sim > \tau}
+\]
+
+\[
+\frac{(i: \tau_{1} \sim > \tau_{2})\in I}{ I\:\vDash_{i} \tau_{1} \sim > \tau_{2}}
+\]
+
+
+\framebox[1.1\width]{$I; \Upgamma \vdash e : \tau $}
+\\
+\\
+\\
+\framebox[1.1\width]{$I\:\vDash_{i} \tau_{1} \sim > \tau_{2}$}
+\\
+\\
+\\
+\framebox[1.1\width]{$I; \Upgamma \vdash impl : I' $}
+\\
+\\
+\framebox[1.1\width]{$\overline{\tau};I \vDash_{i} \tau_{1} \sim > \tau_{2}$}
+
+\[
+  \frac{\bullet \: ;I \vDash_{i} \tau_{1} \sim > \tau_{2}}
+  {I \: \vDash_{i} \tau_{1} \sim > \tau_{2}}
+\]
+
+\[
+  \frac{I; \Upgamma \vdash e : \tau_{1} \rightarrow \tau_{2}\\
+  \mid \tau_{1} \mid \geq \mid \tau_{2} \mid}
+  {I; \Upgamma \vdash (implicit \: i : \tau_{1} \sim > \tau_{2}) = e : I, i : \tau_{1} \sim > \tau_{2}}
+\]
+
+\[
+  \frac{I; \Upgamma \vdash e : \tau_{1} \rightarrow \tau_{2}\\
+  \mid \tau_{1} \mid \geq \mid \tau_{2} \mid\\ I \nvDash_{i} \tau_{1} \sim > \tau_{2}}
+  {I; \Upgamma \vdash (implicit \: i : \tau_{1} \sim > \tau_{2}) = e : I, i : \tau_{1} \sim > \tau_{2}}
+\]
+
+\[
+  \frac{I; \Upgamma \vdash e : \tau_{1} \rightarrow \tau_{2}}
+  {I; \Upgamma \vdash (implicit \: i : \tau_{1} \sim > \tau_{2}) = e : I, i : \tau_{1} \sim > \tau_{2}}
+\]
+
+
+$implicit \: i_{1}:Int \sim>List[Int]$
+\\
+\\
+$implicit \: i_{2}:Int \sim>List[Bool]$
+\\
+$implicit \: i_{3}:Bool \sim>List[Int]$ \\ \\
+$implicit \: i: Bool \sim>Int , 2048$\\ \\
+$I=I',implicit \: i_{LB2LI}:List[Bool] \sim>List[Int]$ \\ \\
+$Bool \sim>Float \sim>Char \sim> Int$ , 3\\ \\
+\\
+$implicit \: i_{0}:Bool \sim>Float, 1 $ \\
+$implicit \: i_{1}:Float \sim>Char, 1 $ \\
+$implicit \: i_{2}:Char \sim>Int, 1 $ \\
+\\\\\\\\\\\\\\
+
+
+\end{document}
