@@ -1,0 +1,80 @@
+\documentclass{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage{ upgreek }
+\usepackage{mathpartir}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{tcolorbox}
+
+\input{macros}
+
+\begin{document}
+
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+%                               Type Checking
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+\begin{flushleft}
+  \namedRuleform{ \tcTerm{\imEnv}{\tyEnv}{\term}{\type} }
+                {Source Type Checking}
+\end{flushleft}
+
+\[
+\begin{array}{@{\hspace{0mm}}c@{\hspace{0mm}}}
+
+  \inferrule*[right=TmApp]
+  {
+  \tcTerm{\imEnv}{\tyEnv}{\term_1}{\type_1 \to \type_2} \\
+  \tcTerm{\imEnv}{\tyEnv}{\term_2}{\type_1} 
+  }
+  { \tcTerm{\imEnv}{\tyEnv}{\term_1 \term_2}{\type_2} }
+
+  \quad \quad
+
+  \inferrule*[right=TmAbs]
+  {
+  \tcTerm{\imEnv}{\tyEnv, \tmVar : \type_1}{\term}{\type_2}
+  }
+  { \tcTerm{\imEnv}{\tyEnv}{\lambda \tmVar . \term}{\type_1 \to \type_2} }
+
+  \\[5mm]
+
+  \inferrule*[right=TmConv]
+  {
+  \tcTerm{\imEnv}{\tyEnv}{\term}{\type_1} \\
+  \imRes{\imEnv}{\type_1}{\type_2}
+  }
+  { \tcTerm{\imEnv}{\tyEnv}{\term}{\type_2} }
+  
+\end{array}
+\]
+
+
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+%                               Type Inference
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+\begin{flushleft}
+  \namedRuleform{ \infTerm{\imEnv}{\tyEnv}{\term}{\type}{\eqCts}{\imCts} }
+                {Source Type Inference}
+\end{flushleft}
+
+
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+%                          Implicit Conv Resolution
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+\begin{flushleft}
+  \namedRuleform{ \imRes{\imEnv}{\type_1}{\type_2} }
+                {Implicit Conversion Resolution}
+\end{flushleft}
+
+
+\begin{flushleft}
+  \namedRuleform{ \imResi{\bar{\type}}{\imEnv}{\type_1}{\type_2} }
+                {Implicit Conversion Resolution with Loop Detection}
+\end{flushleft}
+
+
+\end{document}
