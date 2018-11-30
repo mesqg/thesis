@@ -1,0 +1,46 @@
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+%                              General Syntax
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+\newcommand\authornote[3]{\textcolor{#2}{#1: #3}}
+\newcommand\francisco[1]{\authornote{Francisco}{red}{#1}}
+\newcommand\gertjan[1]{\authornote{Gert-Jan}{orange}{#1}}
+
+\newcommand{\ruleform}[1]{\fbox{$#1$}}
+\newcommand{\namedRuleform}[2]{{\small $\ruleform{#1}$} \quad {#2}}
+
+
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+%                               Source Syntax
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+\newcommand{\tmVar}            {\mathit{x}}    % Term variables
+\newcommand{\tyVar}            {\mathit{a}}    % Type variables
+\newcommand{\imVar}            {\mathit{i}}    % Impl conv variables
+\newcommand{\term}             {\mathit{e}}
+\newcommand{\type}             {\mathit{\tau}} % Simple types
+\newcommand{\eqCts}            {\mathit{E}}    % Equality constraints
+\newcommand{\imCts}            {\mathit{Y}}    % Impl conv constraints
+
+% Environments
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\newcommand{\tyEnv}            {\Gamma}        % Typing environment
+\newcommand{\imEnv}            {I}             % Impl conv environment
+
+% Types
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\newcommand{\tyAbs}[2]         {\forall {#1} . {#2}} % Type abstraction
+
+
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+%                               Source Typing
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+\newcommand{\tcTerm}[4]        {{#1} ; {#2} \vdash_{tm} {#3} : {#4}}
+                                % Type checking term
+\newcommand{\infTerm}[6]       {{#1} ; {#2} \vdash_{tm} {#3} : {#4} ; {#5} ; {#6}}
+                                % Type inference term
+\newcommand{\imRes}[3]         {{#1} \vDash_i {#2} \rightsquigarrow {#3}}
+                                % Impl conv resolution
+\newcommand{\imResi}[4]        {{#1} ; {#2} \vDash_i {#3} \rightsquigarrow {#4}}
+                                % Internal impl conv resolution
