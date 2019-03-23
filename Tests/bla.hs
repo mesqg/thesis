@@ -8,8 +8,6 @@ data Oink = OinkOink | Yeah
 
 implicit yamano : Chuck Bool = \x. False
 implicit yeye : Bool Oink = \x. OinkOink
-implicit yamano : Chuck Bool = \x. False
-implicit yeye : Bool Oink = \x. OinkOink
 
 class Eq a :: * where
   equals :: a -> a -> Bool
@@ -29,6 +27,10 @@ instance Eq Oink where
   equals = \z.\z.False
 
 -- | Program expression
---(\z. compare (\x. \y. equals x y) z)
---   (\x. (equals True) AA) (False)
-(\x. (equals AA Yeah)) (True)
+
+--(\x. (equals False x)) (Yeah) -- works fine
+--(\x. (equals AA x)) (Yeah) -- works fine
+--(\x. (equals x False)) (Yeah) -- doesn't. Think because we dont have backtrack yet
+
+(equals AA Yeah) --all good
+   -- (equals Yeah AA) --no backtracking
