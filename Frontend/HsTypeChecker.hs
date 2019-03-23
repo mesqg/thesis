@@ -596,7 +596,7 @@ solveY all@((YCt j ty1 ty2):xs) it
 solveY :: YCs -> ImplicitTheory -> TcM FcTmSubst
 solveY [] it = return mempty
 solveY (x@(YCt j _):xs) it = do
-  (expr,ty_subst) <- solve_one_iconv x it
+  (expr, ty_subst) <- solve_one_iconv x it
   rest <- solveY (substInYCs ty_subst xs) it
   return (j |-> expr <> rest)
   
@@ -607,12 +607,10 @@ solveY (x@(YCt j _):xs) it = do
               t0 <-  elabMonoTy (substInMonoTy ty_subst ty1)
               let id = FcTmAbs x t0 (FcTmVar x)
               return (id, ty_subst)
-        solve_one_iconv x@(YCt dummy (MCT ty1 ty2)) c@(cs :> (UC (MCT a b) exp))
+        solve_one_iconv x@(YCt dummy (MCT ty1 ty2)) (cs :> (UC (MCT a b) exp))
           | Right ty_subst <- unify [] [ty1 :~: a] = do
-              let t1' = substInMonoTy ty_subst ty1
-              let b' = substInMonoTy ty_subst b              
-              --let exp' = substFcT
-              (tm_rest,ty_subst2) <- solve_one_iconv (YCt dummy (MCT b' ty2)) c
+              let yct = substInYCt ty_subst (YCt dummy (MCT b ty2))
+              (tm_rest,ty_subst2) <- solve_one_iconv yct it
               return (FcTmApp tm_rest exp,ty_subst2 <> ty_subst)
           | otherwise = solve_one_iconv x cs
         solve_one_iconv a SN = do return (FcDummyTerm,mempty)
