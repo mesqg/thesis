@@ -4,8 +4,12 @@
 
 data Bool = True | False
 data Chuck  = AA
+data Oink = OinkOink | Yeah
 
-implicit yamano : Bool Bool = \x. AA
+implicit yamano : Chuck Bool = \x. False
+implicit yeye : Bool Oink = \x. OinkOink
+implicit yamano : Chuck Bool = \x. False
+implicit yeye : Bool Oink = \x. OinkOink
 
 class Eq a :: * where
   equals :: a -> a -> Bool
@@ -21,9 +25,10 @@ instance Eq Bool where
       False -> case y of
           True -> False
           False -> True
-instance Eq Chuck where
+instance Eq Oink where
   equals = \z.\z.False
 
 -- | Program expression
 --(\z. compare (\x. \y. equals x y) z)
-   \x. equals True x
+--   (\x. (equals True) AA) (False)
+(\x. (equals AA Yeah)) (True)

@@ -435,7 +435,7 @@ elabTmApp tm1 tm2 = do
   a <- TyVar <$> freshRnTyVar KStar
   b <- TyVar <$> freshRnTyVar KStar
   storeEqCs [mkRnArrowTy [b] a :~: ty1]
-  storeYCs [YCt j ty2 b]
+  storeYCs [YCt j (MCT ty2 b)]
   return (a, FcTmApp (FcTmApp fc_tm1 (FcTmVar j)) fc_tm2) -- add fresh FcTmVar in between
 
 -- | Elaborate a lambda abstraction
@@ -517,7 +517,7 @@ elabHsAlt scr_ty res_ty (HsAlt (HsPat dc xs) rhs) = do
   (rhs_ty, fc_rhs) <- extendCtxTmsM xs arg_tys (elabTerm rhs)   -- Type check the right hand side
   --storeEqCs [ scr_ty :~: foldl TyApp (TyCon tc) (map TyVar bs)  -- The scrutinee type must match the pattern type
   j <- freshFcTmVar
-  storeYCs [YCt j scr_ty (foldl TyApp (TyCon tc) (map TyVar bs))]
+  storeYCs [YCt j (MCT scr_ty (foldl TyApp (TyCon tc) (map TyVar bs)))]
   storeEqCs [ res_ty :~: rhs_ty ]                               -- All right hand sides should be the same
 --  return (FcAlt (FcConPat fc_dc (map rnTmVarToFcTmVar xs)) fc_rhs)
   return (FcAltConv (fcTmApp (FcTmVar j) (FcTmDataCon fc_dc:(map (FcTmVar . rnTmVarToFcTmVar) xs))) fc_rhs)
@@ -576,7 +576,7 @@ occursCheck _ (TyCon {})      = True
 occursCheck a (TyApp ty1 ty2) = occursCheck a ty1 && occursCheck a ty2
 occursCheck a (TyVar b)       = a /= b
 
--- * NEW: Solving Y
+{-- * NEW: Solving Y
 solveY :: YCs -> ImplicitTheory -> TcM FcTmSubst
 solveY [] it = return mempty
 solveY all@((YCt j ty1 ty2):xs) it
@@ -592,7 +592,30 @@ solveY all@((YCt j ty1 ty2):xs) it
       let to' = substInMonoTy ty_subst1 to
       ty_subs2 <- unify [] [ty2 :~: to']-}
       return mempty
+-}  
+solveY :: YCs -> ImplicitTheory -> TcM FcTmSubst
+solveY [] it = return mempty
+solveY (x@(YCt j _):xs) it = do
+  (expr,ty_subst) <- solve_one_iconv x it
+  rest <- solveY (substInYCs ty_subst xs) it
+  return (j |-> expr <> rest)
   
+  where solve_one_iconv :: YCt -> ImplicitTheory -> TcM (FcTerm,HsTySubst)
+        solve_one_iconv (YCt _ (MCT ty1 ty2)) it
+          | Right ty_subst <- unify [] [ty1 :~: ty2] = do
+              x <- freshFcTmVar
+              t0 <-  elabMonoTy (substInMonoTy ty_subst ty1)
+              let id = FcTmAbs x t0 (FcTmVar x)
+              return (id, ty_subst)
+        solve_one_iconv x@(YCt dummy (MCT ty1 ty2)) c@(cs :> (UC (MCT a b) exp))
+          | Right ty_subst <- unify [] [ty1 :~: a] = do
+              let t1' = substInMonoTy ty_subst ty1
+              let b' = substInMonoTy ty_subst b              
+              --let exp' = substFcT
+              (tm_rest,ty_subst2) <- solve_one_iconv (YCt dummy (MCT b' ty2)) c
+              return (FcTmApp tm_rest exp,ty_subst2 <> ty_subst)
+          | otherwise = solve_one_iconv x cs
+        solve_one_iconv a SN = do return (FcDummyTerm,mempty)
   
 -- * Overlap Checking
 -- ------------------------------------------------------------------------------
@@ -954,9 +977,9 @@ elabIConvDecl :: FullTheory -> ImplicitTheory -> RnIConvDecl -> TcM (FcValBind, 
 elabIConvDecl ft implt (IConvD name pct@(PCTS (QCTS (MCT a b))) exp) = do
   let (xa,xb,xc) = destructPolyConvTy pct
   (rn_poly_ty, elab_exp) <- elabTermSimpl (ftDropSuper ft) implt exp -- TODO: add the conditions to a 'local' implicit theory used to elab the expression
-  
+  -- TODO!Check the implicit does what it claims to do.
   --hs_ty_subs <- return (polyTyToMonoTy rn_poly_ty >>= (\x -> unify [] [ x :~: (mkRnArrowTy [a] b)]))
-  let ext_it = implt -- { it = it implt `mappend` (SN :> (UC a b elab_exp))}
+  let ext_it = implt `itExtend` (UC (MCT a b) elab_exp)
   let fcname = rnTmVarToFcTmVar name
   fc_a <- elabMonoTy a --TODO!
   fc_b <- elabMonoTy b
@@ -1070,7 +1093,7 @@ hsElaborate rn_gbl_env us pgm = runWriter
                                    ; assocs <- buildInitFcAssocs
                                    ; return (result, assocs) }
   where
-    init_implicits_theory = IT mempty
+    init_implicits_theory = mempty
     tc_init_theory  = FT mempty mempty mempty
     tc_init_ctx     = mempty
     tc_init_gbl_env = TcEnv mempty mempty mempty

@@ -459,18 +459,24 @@ progTheoryFromSimple = fmap (\(d :| c) -> d :| constructCtr ([],[],c))
 
 -- |NEW
 type YCs = [YCt]
-data YCt = YCt (FcTmVar) (RnMonoTy) (RnMonoTy)
+data YCt = YCt FcTmVar RnMonoConvTy
 
 data FullTheory = FT { theory_super :: ProgramTheory
                      , theory_inst  :: ProgramTheory
                      , theory_local :: ProgramTheory
                      }
-data ConvAxiom = UC RnMonoTy RnMonoTy FcTerm                   
-data ImplicitTheory = IT {it :: SnocList ConvAxiom} -- need a local too!
+data ConvAxiom = UC RnMonoConvTy FcTerm                   
+type ImplicitTheory = SnocList ConvAxiom {-it :: SnocList ConvAxiom
+                        -- , local :: SnocList MonoConvTy
+                        -}
 
 -- | Extend the implicit theory
 --ftExtendSuper :: FullTheory -> ProgramTheory -> FullTheory
 --ftExtendSuper theory super_cs = theory { theory_super = theory_super theory `mappend` super_cs }
+
+-- | Extend the implicit theory
+itExtend :: ImplicitTheory -> ConvAxiom -> ImplicitTheory
+itExtend implt ax = implt {- it = it implt-} `mappend` (singletonSnocList ax)
 
 -- | Extend the superclass component of the theory
 ftExtendSuper :: FullTheory -> ProgramTheory -> FullTheory
@@ -774,6 +780,10 @@ instance PrettyPrint EqCt where
 
 -- | Pretty print Y constraints
 instance PrettyPrint YCt where
-  ppr (YCt j ty1 ty2) = ppr j <+> colon <+> ppr ty1 <+> text "~>" <+> ppr ty2
+  ppr (YCt j mct) = ppr j <+> colon <+> ppr mct
   needsParens _ = True
 
+-- | Pretty print MonoConvTy
+instance PrettyPrint RnMonoConvTy where
+  ppr (MCT a b) = text "MonoConvTy" <+> ppr a <+> text "~>" <+> ppr b
+  needsParens _ = True
