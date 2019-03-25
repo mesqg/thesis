@@ -458,7 +458,7 @@ progTheoryFromSimple = fmap (\(d :| c) -> d :| constructCtr ([],[],c))
 
 
 -- |NEW
-type YCs = [YCt]
+type YCs = SnocList YCt
 data YCt = YCt FcTmVar RnMonoConvTy
 
 data FullTheory = FT { theory_super :: ProgramTheory
