@@ -182,6 +182,12 @@ hsTyPatToMonoTy (HsTyVarPat (a :| _kind)) = TyVar a
 -- ------------------------------------------------------------------------------
 
 -- | Conversion Type
+-- GJ: This will work just fine, but it might be slight overkill.
+-- I don't think we ever need to use a QualConvTy?
+-- So I personally would have gone for
+-- data MonoConvTy a = MCT (MonoTy a) (MonoTy a)
+-- data PolyConvTy a = PCT [HsTyVarWithKind a] [MonoConvTy a] (MonoConvTy a)
+-- Just personal preference :)
 data PolyConvTy a  = PCTC (HsTyVarWithKind a) (PolyConvTy a)
                    | PCTS (QualConvTy a)
 data QualConvTy a = QCTC (MonoConvTy a) (QualConvTy a)
@@ -465,7 +471,7 @@ data FullTheory = FT { theory_super :: ProgramTheory
                      , theory_inst  :: ProgramTheory
                      , theory_local :: ProgramTheory
                      }
-data ConvAxiom = UC RnMonoConvTy FcTerm                   
+data ConvAxiom = UC RnMonoConvTy FcTerm
 type ImplicitTheory = SnocList ConvAxiom {-it :: SnocList ConvAxiom
                         -- , local :: SnocList MonoConvTy
                         -}

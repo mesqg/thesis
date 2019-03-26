@@ -286,7 +286,7 @@ wfElabPolyTy (PPoly (a :| _) ty) = do
 -- * Type and Constraint Elaboration (Without Well-scopedness Check)
 -- ------------------------------------------------------------------------------
 
--- | Elaborate a monotype UPDATED!
+-- | Elaborate a monotype UPDATED! -- GJ: It looks identical to the old version?
 elabMonoTy :: RnMonoTy -> TcM FcType
 elabMonoTy (TyCon tc)      = FcTyCon <$> lookupTyCon tc
 elabMonoTy (TyApp ty1 ty2) = FcTyApp <$> elabMonoTy ty1 <*> elabMonoTy ty2
@@ -435,8 +435,19 @@ elabTmApp tm1 tm2 = do
   a <- TyVar <$> freshRnTyVar KStar
   b <- TyVar <$> freshRnTyVar KStar
   storeEqCs [mkRnArrowTy [b] a :~: ty1]
+  -- GJ: This is fine, but it seems quite verbose and hard to read.
+  -- Since this pattern seems to repeat multiple times in the code,
+  -- I would write a simple function to construct a constraint:
+  -- constrYCs :: FcTmVar -> FcMonoTy -> FcMonoTy -> YCs
+  -- constrYCs j t1 t2 = singletonSnocList (YCt j (MCT t1 t2))
+  -- This will make the code much more readable:
+  -- storeYCs $ constrYCs j ty2 b
   storeYCs (singletonSnocList (YCt j (MCT ty2 b)))
-  return (a, FcTmApp (FcTmApp fc_tm1 (FcTmVar j)) fc_tm2) -- add fresh FcTmVar in between
+  -- GJ: This looks wrong. We want to convert e2 using j.
+  -- The resulting System F term should thus be e1 (j e2), not (e1 j) e2.
+  -- return (a, FcTmApp (FcTmApp fc_tm1 (FcTmVar j)) fc_tm2) -- add fresh FcTmVar in between
+  -- Updated version:
+  return (a, FcTmApp fc_tm1 (FcTmApp (FcTmVar j) fc_tm2)) -- add fresh FcTmVar in between
 
 -- | Elaborate a lambda abstraction
 elabTmAbs :: RnTmVar -> RnTerm -> GenM (RnMonoTy, FcTerm)
@@ -517,9 +528,12 @@ elabHsAlt scr_ty res_ty (HsAlt (HsPat dc xs) rhs) = do
   (rhs_ty, fc_rhs) <- extendCtxTmsM xs arg_tys (elabTerm rhs)   -- Type check the right hand side
   --storeEqCs [ scr_ty :~: foldl TyApp (TyCon tc) (map TyVar bs)  -- The scrutinee type must match the pattern type
   j <- freshFcTmVar
+  -- GJ: see previous comment, using constrYCs this would become more readable
   storeYCs (singletonSnocList (YCt j (MCT scr_ty (foldl TyApp (TyCon tc) (map TyVar bs)))))
+  -- GJ: don't forget to update comments
   storeEqCs [ res_ty :~: rhs_ty ]                               -- All right hand sides should be the same
 --  return (FcAlt (FcConPat fc_dc (map rnTmVarToFcTmVar xs)) fc_rhs)
+  -- GJ: we need to discuss this in the next meeting. Why do we need a separate FcAltConv constructor?
   return (FcAltConv (fcTmApp (FcTmVar j) (FcTmDataCon fc_dc:(map (FcTmVar . rnTmVarToFcTmVar) xs))) fc_rhs)
 
 -- | Covert a renamed type variable to a System F type
@@ -940,6 +954,7 @@ instMethodTy typat poly_ty = constructPolyTy (new_as, new_cs, new_ty)
     new_cs     = substInClsCs subst cs
     new_ty     = substInMonoTy subst ty
 -- TODO! duplicated only to fit elabIConv
+-- GJ: I don't understand. Why is this duplicated?
 instMethodTy2 :: RnMonoTy -> RnPolyTy -> RnPolyTy
 instMethodTy2 typat poly_ty = constructPolyTy (new_as, new_cs, new_ty)
   where
@@ -1009,6 +1024,7 @@ elabHsTySubst = mapSubM (return . rnTyVarToFcTyVar) elabMonoTy
 --   a) 
 --   b)
 --plenty TO DO's... ugly baked in things. Only MonoConversions!
+-- GJ: Uhm... We'll go through this function together in the next meeting...
 elabIConvDecl :: FullTheory -> ImplicitTheory -> RnIConvDecl -> TcM (FcValBind, ImplicitTheory)
 elabIConvDecl ft implt (IConvD name pct@(PCTS (QCTS (MCT a b))) exp) = do
      let (xa,xb,xc) = destructPolyConvTy pct
