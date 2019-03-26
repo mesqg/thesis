@@ -5,10 +5,10 @@ data Arm = A
 data Bool = B
 data Chuck  = C
 data Dreamz = D
---data Oink = OinkOink | Yeah
---implicit yoley : Bool Dreamz = \x. D
---implicit yupa : Dreamz Chuck =\x. C
---implicit yamano : Arm Bool = \x. B
+--comment yoley out to see it working
+implicit yoley : Bool Arm = \x. D --Use to see that the 
+implicit yupa : Dreamz Chuck =\x. C
+implicit yamano : Arm Bool = \x. B
 implicit yeye : Bool Chuck = \x. C
 
 class Eq a :: * where
