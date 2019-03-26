@@ -939,7 +939,15 @@ instMethodTy typat poly_ty = constructPolyTy (new_as, new_cs, new_ty)
     new_as     = as
     new_cs     = substInClsCs subst cs
     new_ty     = substInMonoTy subst ty
-
+-- TODO! duplicated only to fit elabIConv
+instMethodTy2 :: RnMonoTy -> RnPolyTy -> RnPolyTy
+instMethodTy2 typat poly_ty = constructPolyTy (new_as, new_cs, new_ty)
+  where
+    ((a :| _kind):as,cs,ty) = destructPolyTy poly_ty
+    subst      = (a |-> typat)
+    new_as     = as
+    new_cs     = substInClsCs subst cs
+    new_ty     = substInMonoTy subst ty
 -- | Elaborate a term with an explicit type signature (method implementation).
 -- This involves both inference and type subsumption.
 -- UPDATED!
@@ -999,21 +1007,25 @@ elabHsTySubst = mapSubM (return . rnTyVarToFcTyVar) elabMonoTy
 
 -- | Elaborate an Implicit Conversion. Take the program theory also as input and return
 --   a) 
---   b) 
+--   b)
+--plenty TO DO's... ugly baked in things. Only MonoConversions!
 elabIConvDecl :: FullTheory -> ImplicitTheory -> RnIConvDecl -> TcM (FcValBind, ImplicitTheory)
 elabIConvDecl ft implt (IConvD name pct@(PCTS (QCTS (MCT a b))) exp) = do
-  let (xa,xb,xc) = destructPolyConvTy pct
-  (rn_poly_ty, elab_exp) <- elabTermSimpl (ftDropSuper ft) implt exp -- TODO: add the conditions to a 'local' implicit theory used to elab the expression
-  -- TODO!Check the implicit does what it claims to do.
-  --hs_ty_subs <- return (polyTyToMonoTy rn_poly_ty >>= (\x -> unify [] [ x :~: (mkRnArrowTy [a] b)]))
-  let ext_it = implt `itExtend` (UC (MCT a b) elab_exp)
-  let fcname = rnTmVarToFcTmVar name
-  fc_a <- elabMonoTy a --TODO!
-  fc_b <- elabMonoTy b
-  let fc_type = mkFcArrowTy fc_a fc_b
-  --fc_type <- elabPolyTy rn_poly_ty
-  let fc_val_bind = FcValBind fcname fc_type elab_exp
-  return (fc_val_bind,ext_it)
+     let (xa,xb,xc) = destructPolyConvTy pct
+     (rn_poly_ty, elab_exp) <- elabTermSimpl (ftDropSuper ft) implt exp -- TODO: add the conditions to a 'local' implicit theory used to elab the expression
+     -- TODO!Check the implicit does what it claims to do.
+     [mono_ty] <- polyTysToMonoTysM [(instMethodTy2 a rn_poly_ty)]
+     unify (ftyvsOf a++ ftyvsOf b)  [ mono_ty :~: (mkRnArrowTy [a] b)]
+     fc_a <- elabMonoTy a --TODO!
+     fc_b <- elabMonoTy b
+     let ugly = (FcTmTyApp elab_exp fc_a)
+     let ext_it = implt `itExtend` (UC (MCT a b) ugly)
+     let fcname = rnTmVarToFcTmVar name
+     let fc_type = mkFcArrowTy fc_a fc_b
+     --fc_type <- elabPolyTy rn_poly_ty
+     let fc_val_bind = FcValBind fcname fc_type ugly
+     return (fc_val_bind,ext_it)
+  `catchError` (\_-> throwError ("Implicit  "++ (render . ppr) name++" is lying OR elabIConvDecl is fighting back."))   
 
 -- * Type Inference With Constraint Simplification
 -- ------------------------------------------------------------------------------
