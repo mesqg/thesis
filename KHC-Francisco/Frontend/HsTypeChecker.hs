@@ -286,7 +286,7 @@ wfElabPolyTy (PPoly (a :| _) ty) = do
 -- * Type and Constraint Elaboration (Without Well-scopedness Check)
 -- ------------------------------------------------------------------------------
 
--- | Elaborate a monotype UPDATED! -- GJ: It looks identical to the old version?
+-- | Elaborate a monotype
 elabMonoTy :: RnMonoTy -> TcM FcType
 elabMonoTy (TyCon tc)      = FcTyCon <$> lookupTyCon tc
 elabMonoTy (TyApp ty1 ty2) = FcTyApp <$> elabMonoTy ty1 <*> elabMonoTy ty2
@@ -435,14 +435,8 @@ elabTmApp tm1 tm2 = do
   a <- TyVar <$> freshRnTyVar KStar
   b <- TyVar <$> freshRnTyVar KStar
   storeEqCs [mkRnArrowTy [b] a :~: ty1]
-  -- GJ: This is fine, but it seems quite verbose and hard to read.
-  -- Since this pattern seems to repeat multiple times in the code,
-  -- I would write a simple function to construct a constraint:
-  -- constrYCs :: FcTmVar -> FcMonoTy -> FcMonoTy -> YCs
-  -- constrYCs j t1 t2 = singletonSnocList (YCt j (MCT t1 t2))
-  -- This will make the code much more readable:
-  -- storeYCs $ constrYCs j ty2 b
-  storeYCs (singletonSnocList (YCt j (MCT ty2 b)))
+  storeYCs $ constrYCs j ty2 b
+  --storeYCs (singletonSnocList (YCt j (MCT ty2 b)))
   -- GJ: This looks wrong. We want to convert e2 using j.
   -- The resulting System F term should thus be e1 (j e2), not (e1 j) e2.
   -- return (a, FcTmApp (FcTmApp fc_tm1 (FcTmVar j)) fc_tm2) -- add fresh FcTmVar in between
@@ -528,12 +522,11 @@ elabHsAlt scr_ty res_ty (HsAlt (HsPat dc xs) rhs) = do
   (rhs_ty, fc_rhs) <- extendCtxTmsM xs arg_tys (elabTerm rhs)   -- Type check the right hand side
   --storeEqCs [ scr_ty :~: foldl TyApp (TyCon tc) (map TyVar bs)  -- The scrutinee type must match the pattern type
   j <- freshFcTmVar
-  -- GJ: see previous comment, using constrYCs this would become more readable
-  storeYCs (singletonSnocList (YCt j (MCT scr_ty (foldl TyApp (TyCon tc) (map TyVar bs)))))
-  -- GJ: don't forget to update comments
+  storeYCs $ constrYCs j scr_ty (foldl TyApp (TyCon tc) (map TyVar bs))
+-- GJ: don't forget to update comments
   storeEqCs [ res_ty :~: rhs_ty ]                               -- All right hand sides should be the same
 --  return (FcAlt (FcConPat fc_dc (map rnTmVarToFcTmVar xs)) fc_rhs)
-  -- GJ: we need to discuss this in the next meeting. Why do we need a separate FcAltConv constructor?
+-- GJ: we need to discuss this in the next meeting. Why do we need a separate FcAltConv constructor?
   return (FcAltConv (fcTmApp (FcTmVar j) (FcTmDataCon fc_dc:(map (FcTmVar . rnTmVarToFcTmVar) xs))) fc_rhs)
 
 -- | Covert a renamed type variable to a System F type
@@ -592,14 +585,14 @@ occursCheck a (TyVar b)       = a /= b
 
 -- * NEW CODE FOR SOLVING IMPLICIT CONSTRAINTS
 -- | Completely entail the set of Implicit constraints. This allows to try several orders in which to solve the set.
-solveY :: YCs -> ImplicitTheory -> TcM FcTmSubst
+solveY :: YCs -> ImplicitTheory -> TcM (FcTmSubst,HsTySubst)
 solveY ycs it = do
     let perm = (listToSnocList . (map listToSnocList) . permutations . snocListToList) ycs
-    subst <- runSolverFirstM $ liftSolveM (snocListChooseM perm (\ycs -> meta ycs it)) >>= SolveM . selectListT;
-    return subst
+    (subst,ty_subst) <- runSolverFirstM $ liftSolveM (snocListChooseM perm (\ycs -> meta ycs it)) >>= SolveM . selectListT;
+    return (subst,ty_subst)
   `catchError` (\_-> throwError "solveY")
     where 
-      meta :: YCs -> ImplicitTheory -> TcM (Maybe FcTmSubst)
+      meta :: YCs -> ImplicitTheory -> TcM (Maybe (FcTmSubst,HsTySubst))
       meta ycs it =  do
           x<- entailYcs ycs it
           return $ Just x
@@ -607,12 +600,12 @@ solveY ycs it = do
   
 -- TODO duplicated code! -}
 -- | Completely entail a set of conversion constraints. Fail if not possible
-entailYcs :: YCs -> ImplicitTheory -> TcM (FcTmSubst)
+entailYcs :: YCs -> ImplicitTheory -> TcM (FcTmSubst,HsTySubst)
 entailYcs SN it = return mempty
 entailYcs (xs :> x) it = do
   (subst,ty_subst) <- entailYct [] it (singletonSnocList x)
-  rest <- entailYcs (substInYCs ty_subst xs) it
-  return (subst <> rest)
+  (rest,ty_subst2) <- entailYcs (substInYCs ty_subst xs) it
+  return (rest <> subst, ty_subst2 <> ty_subst)
 
 entailYct :: [RnTyVar] ->  ImplicitTheory -> YCs -> TcM (FcTmSubst,HsTySubst)
 entailYct untch theory ctrs = do
@@ -981,9 +974,14 @@ elabTermWithSig untch it theory tm poly_ty = do
 
   ty_subst  <- unify untouchables $ wanted_eqs ++ [mono_ty :~: ty]
 
+    -- NEW: YCs
+  let refined_wanted_ics = substInYCs ty_subst wanted_ics                       -- refine the wanted implicit conversion constraints
+  (subst_place_holding_vars,ty_subst2) <- solveY refined_wanted_ics it
+    -- End NEW
+
   ev_subst <- do
     let local_theory = ftToProgramTheory theory <> progTheoryFromSimple given_ccs
-    let wanted       = substInSimpleProgramTheory ty_subst wanted_ccs
+    let wanted       = substInSimpleProgramTheory (ty_subst2 <> ty_subst) wanted_ccs
     -- rightEntailsRec untouchables local_theory wanted
     entailTcM untouchables local_theory wanted
 
@@ -994,15 +992,8 @@ elabTermWithSig untch it theory tm poly_ty = do
 
   fc_subst <- elabHsTySubst ty_subst
   let refined_fc_tm = substFcTyInTm fc_subst fc_tm
-  
-  -- NEW: YCs
-  let refined_wanted_ics = substInYCs ty_subst wanted_ics                       -- refine the wanted implicit conversion constraints
-  subst_place_holding_vars <- solveY refined_wanted_ics it
---  let YCt j t1 t2 = wanted_ics !! 0
---  let fc_tm_after_Y = substFcTmInTm (j |-> FcDummyTerm) refined_fc_tm
-  let fc_tm_after_Y = substFcTmInTm subst_place_holding_vars refined_fc_tm
+  let fc_tm_after_Y = substFcTmInTm subst_place_holding_vars refined_fc_tm  
 
-  -- End NEW
   -- Generate the resulting System F term
   return $
     fcTmTyAbs fc_as $
@@ -1023,6 +1014,7 @@ elabHsTySubst = mapSubM (return . rnTyVarToFcTyVar) elabMonoTy
 -- | Elaborate an Implicit Conversion. Take the program theory also as input and return
 --   a) 
 --   b)
+
 --plenty TO DO's... ugly baked in things. Only MonoConversions!
 -- GJ: Uhm... We'll go through this function together in the next meeting...
 elabIConvDecl :: FullTheory -> ImplicitTheory -> RnIConvDecl -> TcM (FcValBind, ImplicitTheory)
@@ -1054,17 +1046,15 @@ elabTermSimpl theory it tm = do
   -- Simplify as much as you can
   ty_subst <- unify mempty $ wanted_eqs -- Solve the needed equalities first
 
-  let refined_wanted_ccs = substInSimpleProgramTheory ty_subst wanted_ccs       -- refine the wanted class constraints
+--  let refined_wanted_ccs = substInSimpleProgramTheory ty_subst wanted_ccs       -- refine the wanted class constraints
   let refined_wanted_ics = substInYCs ty_subst wanted_ics                       -- refine the wanted implicit conversion constraints
   let refined_mono_ty    = substInMonoTy              ty_subst mono_ty          -- refine the monotype
   refined_fc_tm <- elabHsTySubst ty_subst >>= return . flip substFcTyInTm fc_tm -- refine the term
 
   -- NEW: YCs
-  subst_place_holding_vars <- solveY refined_wanted_ics it
---  let YCt j t1 t2 = wanted_ics !! 0
---  let fc_tm_after_Y = substFcTmInTm (j |-> FcDummyTerm) refined_fc_tm
+  (subst_place_holding_vars, ty_subst2) <- solveY refined_wanted_ics it
   let fc_tm_after_Y = substFcTmInTm subst_place_holding_vars refined_fc_tm
-
+  let refined_wanted_ccs = substInSimpleProgramTheory (ty_subst2 <> ty_subst) wanted_ccs       -- refine the wanted class constraints
   -- End NEW
 
   let untouchables = nub (ftyvsOf refined_mono_ty)

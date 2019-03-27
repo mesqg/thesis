@@ -188,6 +188,7 @@ hsTyPatToMonoTy (HsTyVarPat (a :| _kind)) = TyVar a
 -- data MonoConvTy a = MCT (MonoTy a) (MonoTy a)
 -- data PolyConvTy a = PCT [HsTyVarWithKind a] [MonoConvTy a] (MonoConvTy a)
 -- Just personal preference :)
+-- F: I agree: I was having difficulties parsing
 data PolyConvTy a  = PCTC (HsTyVarWithKind a) (PolyConvTy a)
                    | PCTS (QualConvTy a)
 data QualConvTy a = QCTC (MonoConvTy a) (QualConvTy a)
@@ -334,7 +335,7 @@ constructQualTy (cs, ty) = foldr QQual (QMono ty) cs
 
 --TODO! Its dupplicated code...
 -- | Take a polytype apart
-destructPolyConvTy :: PolyConvTy a -> ([HsTyVarWithKind a], [MonoConvTy a], MonoConvTy a) -- GEORGE: Type synonym for lists of type variables?
+destructPolyConvTy :: PolyConvTy a -> ([HsTyVarWithKind a], [MonoConvTy a], MonoConvTy a)
 destructPolyConvTy (PCTS   ty) = ([]  , cs, ty') where     (cs, ty') = destructQualConvTy ty
 destructPolyConvTy (PCTC a ty) = (a:as, cs, ty') where (as, cs, ty') = destructPolyConvTy ty
 
@@ -394,9 +395,9 @@ data Program a = PgmExp  (Term a)                 -- ^ Expression
                | PgmImpl (IConvDecl a) (Program a) -- ^ Implicit declaration
 
 -- | Implicit Declaration
-data IConvDecl a = IConvD { implname :: HsTmVar a -- ^ Name of the conversion
-                        , impltypearg :: PolyConvTy a -- ^ "Type of the conv"
-                        , implconv :: Term a }  -- ^ Conversion expression   
+data IConvDecl a = IConvD { implname    :: HsTmVar a    -- ^ Name of the conversion
+                          , impltypearg :: PolyConvTy a -- ^ "Type of the conv"
+                          , implconv    :: Term a }     -- ^ Conversion expression   
 
 -- | Class declaration
 data ClsDecl a = ClsD { csuper :: ClsCs a           -- ^ Superclass constraints
@@ -475,6 +476,11 @@ data ConvAxiom = UC RnMonoConvTy FcTerm
 type ImplicitTheory = SnocList ConvAxiom {-it :: SnocList ConvAxiom
                         -- , local :: SnocList MonoConvTy
                         -}
+
+-- | Construct a implicit conversion constraint from a ?, and two ?_types: the argument and result type of the conversion
+constrYCs :: FcTmVar -> RnMonoTy -> RnMonoTy -> YCs
+constrYCs j t1 t2 = singletonSnocList (YCt j (MCT t1 t2))
+
 
 -- | Extend the implicit theory
 --ftExtendSuper :: FullTheory -> ProgramTheory -> FullTheory
