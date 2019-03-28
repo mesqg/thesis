@@ -527,6 +527,7 @@ elabHsAlt scr_ty res_ty (HsAlt (HsPat dc xs) rhs) = do
   storeEqCs [ res_ty :~: rhs_ty ]                               -- All right hand sides should be the same
 --  return (FcAlt (FcConPat fc_dc (map rnTmVarToFcTmVar xs)) fc_rhs)
 -- GJ: we need to discuss this in the next meeting. Why do we need a separate FcAltConv constructor?
+
   return (FcAltConv (fcTmApp (FcTmVar j) (FcTmDataCon fc_dc:(map (FcTmVar . rnTmVarToFcTmVar) xs))) fc_rhs)
 
 -- | Covert a renamed type variable to a System F type
@@ -1021,19 +1022,21 @@ elabIConvDecl :: FullTheory -> ImplicitTheory -> RnIConvDecl -> TcM (FcValBind, 
 elabIConvDecl ft implt (IConvD name pct@(PCTS (QCTS (MCT a b))) exp) = do
      let (xa,xb,xc) = destructPolyConvTy pct
      (rn_poly_ty, elab_exp) <- elabTermSimpl (ftDropSuper ft) implt exp -- TODO: add the conditions to a 'local' implicit theory used to elab the expression
-     -- TODO!Check the implicit does what it claims to do.
-     [mono_ty] <- polyTysToMonoTysM [(instMethodTy2 a rn_poly_ty)]
-     unify (ftyvsOf a++ ftyvsOf b)  [ mono_ty :~: (mkRnArrowTy [a] b)]
-     fc_a <- elabMonoTy a --TODO!
+     -- Check the implicit does what it claims to do.
+     do
+       [mono_ty] <- polyTysToMonoTysM [(instMethodTy2 a rn_poly_ty)]
+       unify (ftyvsOf a++ ftyvsOf b)  [ mono_ty :~: (mkRnArrowTy [a] b)]
+      `catchError` (\_-> throwError ("Implicit  "++ (render . ppr) name++" is lying ."))    
+     -- Preparing the output
+     fc_a <- elabMonoTy a
      fc_b <- elabMonoTy b
      let ugly = (FcTmTyApp elab_exp fc_a)
      let ext_it = implt `itExtend` (UC (MCT a b) ugly)
      let fcname = rnTmVarToFcTmVar name
      let fc_type = mkFcArrowTy fc_a fc_b
-     --fc_type <- elabPolyTy rn_poly_ty
      let fc_val_bind = FcValBind fcname fc_type ugly
      return (fc_val_bind,ext_it)
-  `catchError` (\_-> throwError ("Implicit  "++ (render . ppr) name++" is lying OR elabIConvDecl is fighting back."))   
+  
 
 -- * Type Inference With Constraint Simplification
 -- ------------------------------------------------------------------------------
