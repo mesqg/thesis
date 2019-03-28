@@ -1,3 +1,5 @@
+KHC-Francisco/dist/*
+.#.*
 *.hs~
 *.pdf
 *.o
