@@ -15,10 +15,13 @@
 % ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 \newcommand{\tmVar}            {\mathit{x}}    % Term variables
+\newcommand{\tmVal}            {\mathit{v}}    % Term values
 \newcommand{\tyVar}            {\mathit{a}}    % Type variables
-\newcommand{\imVar}            {\mathit{i}}    % Impl conv variables
+\newcommand{\iLocal}[5]        {locimp\, {#1} \Rightarrow {#2}\to{#3}={#4}\,in\,{#5}}    % Impl conv variables
 \newcommand{\term}             {\mathit{e}}
 \newcommand{\type}             {\mathit{\tau}} % Simple types
+\newcommand{\qtype}            {\mathit{\rho}} % Simple types
+\newcommand{\typeS}            {\mathit{\sigma}} % Simple types
 \newcommand{\eqCts}            {\mathit{E}}    % Equality constraints
 \newcommand{\imCts}            {\mathit{Y}}    % Impl conv constraints
 
@@ -26,6 +29,7 @@
 % - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 \newcommand{\tyEnv}            {\Gamma}        % Typing environment
 \newcommand{\imEnv}            {I}             % Impl conv environment
+\newcommand{\thEnv}            {P}             % Program Theory
 
 % Types
 % - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -35,12 +39,35 @@
 % ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 %                               Source Typing
 % ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-\newcommand{\tcTerm}[4]        {{#1} ; {#2} \vdash_{tm} {#3} : {#4}}
+\newcommand{\ogtcTerm}[4]      {{#1} ; {#2} \vdash_{tm} {#3} : {#4}}
+\newcommand{\elabTerm}[6]        {{#1} ; {#2};{#3} \vdash_{tm} {#4} : {#5}; {#6}}
                                 % Type checking term
 \newcommand{\infTerm}[6]       {{#1} ; {#2} \vdash_{tm} {#3} : {#4} ; {#5} ; {#6}}
+\newcommand{\infTermTrans}[7]       {{#1} ; {#2} \vdash_{tm} {#3} : {#4} ; {#5} ; {#6} ; {#7}}
                                 % Type inference term
-\newcommand{\imRes}[3]         {{#1} \vDash_i {#2} \rightsquigarrow {#3}}
+\newcommand{\imRes}[4]         {{#1} \vDash_i {#2}:{#3} \rightsquigarrow {#4}}
                                 % Impl conv resolution
-\newcommand{\imResi}[4]        {{#1} ; {#2} \vDash_i {#3} \rightsquigarrow {#4}}
+\newcommand{\namedImRes}[4]         {{#1} \vDash_i {#2}: {#3} \rightsquigarrow {#4}}
+                                % Named Impl conv resolution
+\newcommand{\imResSubs}[5]         {{#1} \vDash_i {#2}:{#3} \rightsquigarrow {#4};{#5}}
+                                % Impl conv resolution Subs
+\newcommand{\imResi}[5]        {{#1} ; {#2} \vDash_i {#3} \rightsquigarrow {#4};{#5}}
                                 % Internal impl conv resolution
+\newcommand{\imResiSubs}[7]        {{#1} ; {#2} \vDash_i {#3}:{#4} \rightsquigarrow {#5} ; {#6};{#7}}
+
+
+\newcommand{\txTerm}[5] {{#1};{#2};{#3} \vdash_{tm} {#4}:{#5}}
+\newcommand{\txTermSig}[5] {{#1};{#2};{#3} \vdash_{w/Signature} {#4}:{#5}}
+\newcommand{\progTyping}[5] {{#1};{#2};{#3} \vdash_p {#4}:{#5}}
+\newcommand{\classTyping}[5] {{#1};{#2}; \vdash_{class} {#3}:{#4};{#5}}
+\newcommand{\instTyping}[5] {{#1};{#2};{#3} \vdash_{inst} {#4}:{#5}}
+\newcommand{\imEnvBuild}[5] {{#1},{#2},{#3} \vdash_{impl} {#4}:{#5}}
+\newcommand{\dataDTyping}[3] {{#1} \vdash_{data} {#2}:{#3}}
+%~~~~~~~~~~~~~~~~~~~~~~~~~
+%Typing STLC
+%
+\newcommand{\stlcty}[3]        {{#1} \vdash_{tm} {#2} : {#3}}
+\newcommand{\sysftype}         {\mathit{\type_F}}
+\definecolor{superlightgray}{gray}{0.80}
+\newcommand{\highlight}[1]{\setlength{\fboxsep}{2pt}\colorbox{superlightgray}{\ensuremath{#1}}}
+\newcommand{\Nat}         {\mathit{Nat}}

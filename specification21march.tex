@@ -1,0 +1,369 @@
+\documentclass{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage{ upgreek }
+\usepackage{mathpartir}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{tcolorbox}
+\usepackage{verbatim}
+
+\input{macros}
+
+\begin{document}
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+% 15/02/2019. 5/04/2019
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+% SYNTAX
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\begin{figure}
+  \[
+\begin{array}{@{\hspace{0mm}}l@{\hspace{0mm}}}  
+  t\_pgm ::= \type;pgm\\[5mm]
+  pgm ::= data;pgm\,|\,class;pgm\,|\,inst;pgm\,|\,impl;pgm\,|\,\term
+ % \phantom{pgm ::\,|\,}|\,\term
+  \\[5mm]
+ data\,::= data\;T\;\tyVar=K\;\overline{\type}\\
+ class ::=class\,A_{Cls}\Rightarrow TC\,a\textbf{ where }\{f=\typeS\}\\
+ inst\;::=instance\,A_{Cls}\Rightarrow TC \,\type\textbf{ where }\{f=\term\}\\
+ impl\,::=implicit\,A_{Impl} \Rightarrow \textbf{from }\type\textbf{ to }\type = \term
+  \\[5mm]
+
+  \term ::= \tmVar\\
+  \phantom{\term ::}|\,\lambda \tmVar.\term\\
+  \phantom{\term ::}|\,\term_1 \; \term_2\\
+  \phantom{\term ::}|\, K\\
+  \phantom{\term ::}|\, case \, \term_1 \, of\, (K \tmVar) \rightarrow \term_2\\
+  \phantom{\term ::}|\, let \, \tmVar \, =\, \term_1 \,in\, \term_2  \\
+  \phantom{\term ::}|\, \iLocal{A_{Impl}}{\type_{from}}{\type_{to}}{\term_1}{\term_2}
+  \\[5mm]
+  \type ::= \tyVar\,|\,\type_1\to\type_2\,|\,T\,\overline{\type}\\
+  \qtype ::= \type\,|\,Cls \Rightarrow \qtype\\
+  \typeS ::= \qtype\,|\,\forall\tyVar.\typeS
+  \\[5mm]
+  A_X ::= \bullet\,|\,A_X,X\\
+  X ::= Cls\,|\,Impl\\
+  Cls ::= TC\,\type\\
+  Impl ::= \type_{from}\to\type_{to}=\term\\
+  \\[5mm]
+  \tyEnv::=\bullet\,|\,\tyEnv,\tmVar:\typeS\,|\,\tyEnv,\tyVar\,|\,\tyEnv,K:\typeS\,|\,\tyEnv,T\\
+  \thEnv::=\langle \overline{R_S};\overline{R_I};\overline{R_L} \rangle\\
+  R ::= \forall\overline{\tyVar}.A_{Cls}\Rightarrow Cls\\
+  \imEnv::=\overline{\forall \overline{\tyVar}.A_{Impl}\Rightarrow Impl}
+  \end{array}
+\]
+  \caption{Source language syntax}
+\end{figure}
+
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+%                               Program Typing
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\begin{figure}
+\begin{flushleft}
+  \namedRuleform{ \progTyping{\thEnv}{\imEnv}{\tyEnv}{pgm}{\type}}
+                {Program Typing}
+\end{flushleft}
+\[
+\begin{array}{@{\hspace{0mm}}c@{\hspace{0mm}}}
+\inferrule*[right=Data]
+           {\dataDTyping{\tyEnv}{data}{\tyEnv'}\ \\\progTyping{\thEnv}{\imEnv}{\tyEnv'}{pgm}{\type}}
+           {\progTyping{\thEnv}{\imEnv}{\tyEnv}{data;pgm}{\type}}
+           \\[5mm]           
+\inferrule*[right=Class]
+           {\classTyping{\thEnv}{\tyEnv}{class}{\thEnv'}{\tyEnv'}\\\progTyping{\thEnv'}{\imEnv}{\tyEnv'}{pgm}{\type}}
+           {\progTyping{\thEnv}{\imEnv}{\tyEnv}{class;pgm}{\type}}
+           \\[5mm]
+\inferrule*[right=Instance]
+           {\instTyping{\thEnv}{\imEnv}{\tyEnv}{inst}{\thEnv'}\\\progTyping{\thEnv'}{\imEnv}{\tyEnv}{pgm}{\type}}
+           {\progTyping{\thEnv}{\imEnv}{\tyEnv}{inst;pgm}{\type}}     
+           \\[5mm]
+\inferrule*[right=Implicit]
+           {\imEnvBuild{\thEnv}{\imEnv}{\tyEnv}{impl}{\imEnv'}\ \\\progTyping{\thEnv}{\imEnv'}{\tyEnv}{pgm}{\type}}
+           {\progTyping{\thEnv}{\imEnv}{\tyEnv}{impl;pgm}{\type}}
+           \\[5mm]
+\inferrule*[right=Expression]
+           {\txTerm{\thEnv}{\imEnv}{\tyEnv}{\term}{\type}}
+           {\progTyping{\thEnv}{\imEnv}{\tyEnv}{\term}{\type}}
+
+           
+           
+\end{array}
+\]
+  \caption{Program Typing}
+\end{figure}
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`
+% ENVIRONMENTS
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`
+\begin{figure}
+\begin{flushleft}
+  \namedRuleform{ \dataDTyping{\tyEnv}{data}{\tyEnv'} }
+                {Data Declaration Typing}
+\end{flushleft}
+\[
+\inferrule*[]
+           {}
+           {\dataDTyping{\tyEnv}{(data\;T\;\tyVar=K\;\overline{\type})}{\tyEnv,T,(K:\tyAbs{\tyVar}{\overline{\type} \rightarrow T\;\tyVar})}}
+\]
+
+\begin{flushleft}
+  \namedRuleform{ \classTyping{\thEnv}{\tyEnv}{class}{\thEnv'}{\tyEnv'}}
+                {Class Declaration Typing}
+\end{flushleft}
+\[
+\inferrule*[]
+           {}
+           {\classTyping{\thEnv}{\tyEnv}{class\,A_{Cls}\Rightarrow TC\,a\textbf{ where }\{f::\typeS\}}{\thEnv'}{\tyEnv,f:\forall\tyVar.TC\tyVar\Rightarrow \typeS}\\\text{with }\thEnv=\langle \overline{R_S};\overline{R_I};\overline{R_L} \rangle\text{ and }\thEnv'=\langle \overline{R_S},(\overline{\forall\tyVar.TC\tyVar \Rightarrow C_i},C_i \in A_{Cls});\overline{R_I};\overline{R_L} \rangle}
+\]
+\begin{flushleft}
+  \namedRuleform{ \instTyping{\thEnv}{\imEnv}{\tyEnv}{inst}{\thEnv'} }
+                {Instance Declaration Typing}
+\end{flushleft}
+\[
+\inferrule*[]
+           {\overline{b}=fv(\type)\\class\,A_{Cls}\Rightarrow TC\,a\textbf{ where }\{f::\sigma\}\\\thEnv,A;\tyEnv,\overline{b}\vDash[\type/\tyVar]A_{Cls}\\ \progTyping{\thEnv}{\imEnv}{\tyEnv,\overline{b}}{\term}{[\type/\tyVar]\sigma}}
+           {\instTyping{\thEnv}{\imEnv}{\tyEnv}{instance\,A_{}\Rightarrow TC \,\type\textbf{ where }\{f=\term\}}{\thEnv'}\\
+              \text{with }\thEnv=\langle \overline{R_S};\overline{R_I};\overline{R_L} \rangle\text{ and }\thEnv'=\langle \overline{R_S};\overline{R_I},\forall\overline{b}.A\Rightarrow TC\,\type;\overline{R_L} \rangle}
+\]
+\begin{flushleft}
+  \namedRuleform{ \imEnvBuild{\thEnv}{\imEnv}{\tyEnv}{impl}{\imEnv'} }
+                {Implicit Declaration Typing}
+\end{flushleft}
+\[
+\inferrule*[]
+           {\txTermSig{\thEnv}{\imEnv,A_{Impl}}{\tyEnv}{\term}{\type_{from} \rightarrow \type_{to}}}
+           {\imEnvBuild{\thEnv}{\imEnv}{\tyEnv}{implicit\,A_{Impl} \Rightarrow \textbf{from }\type_{from}\textbf{ to }\type_{to} = \term}{\imEnv,A_{Impl} \Rightarrow(\type_{from}\to\type_{to} = \term)}}
+\]
+  \caption{Declaration Typing}
+\end{figure}
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+%Term Typing
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\begin{figure}
+\begin{flushleft}
+  \namedRuleform{ \txTerm{\thEnv}{\imEnv}{\tyEnv}{\term}{\type} }
+                {Term Typing}
+\end{flushleft}
+%\begin{comment}
+\[
+\begin{array}{@{\hspace{0mm}}c@{\hspace{0mm}}}
+    \inferrule*[right=Var]
+             {(\tmVar : \type)\in\tyEnv}
+             {\txTerm{\thEnv}{\imEnv}{\tyEnv}{\tmVar}{\type}}
+
+             \quad\quad
+             
+  \inferrule*[right=Constr]
+             {(K:\forall \tyVar . \type) \in \tyEnv}
+             {\txTerm{\thEnv}{\imEnv}{\tyEnv}{K}{[\tyVar \mapsto \type']\type}}
+            \\[5mm]
+
+  \inferrule*[right=TmApp]
+  {
+  \txTerm{\thEnv}{\imEnv}{\tyEnv}{\term_1}{\type_{arg} \to \type_2} \\
+  \txTerm{\thEnv}{\imEnv}{\tyEnv}{\term_2}{\type_1}\\
+  \imRes{\imEnv}{j}{\type_{arg}}{\type_2}
+  }
+  { \txTerm{\thEnv}{\imEnv}{\tyEnv}{\term_1\, \term_2}{\type_2} }
+
+  \\[5mm]
+
+  \inferrule*[right=TmAbs]
+  {
+  \txTerm{\thEnv}{\imEnv}{\tyEnv, \tmVar : \type_1}{\term}{\type_2}
+  }
+  { \txTerm{\thEnv}{\imEnv}{\tyEnv}{\lambda \tmVar . \term}{\type_1 \to \type_2} }
+
+  \\[5mm]
+
+  \inferrule*[right=TmLet]
+  {
+  \txTerm{\thEnv}{\imEnv}{\tyEnv}{\term_1}{\type_1} \\
+  \txTerm{\thEnv}{\imEnv}{\tyEnv,\term_1:\type_1}{\term_2}{\type_2}
+  }
+  { \txTerm{\thEnv}{\imEnv}{\tyEnv}{let\,\tmVar=\term_1\,in\,\term_2}{\type_2} }
+
+  \\[5mm]
+  \inferrule*[right=TmCase]
+             {(K : \forall a . \overline{\type} \rightarrow T \;a)\in \tyEnv
+               \\
+               \txTerm{\thEnv}{\imEnv}{\tyEnv}{e_1}{\type_1}
+               \\
+               \txTerm{\thEnv}{\imEnv}{\tyEnv,\overline{\tmVar}:[a\mapsto b]\overline{\type}}{e_2}{\type_2}
+               \\
+               \imRes{\imEnv}{j}{\type_1}{T\,b}
+             }
+             {\txTerm{\thEnv}{\imEnv}{\tyEnv}{case\;e_1\;of\;(K\;x)\rightarrow e_2}{\type_2}}
+
+  \\[5mm]
+  \inferrule*[right=TmLocimp]
+  {
+  \txTermSig{\thEnv}{\imEnv,A_{Impl}}{\tyEnv}{\term}{\type_{from} \rightarrow \type_{to}} \\
+  \txTerm{\thEnv}{\imEnv,A_{Impl} \Rightarrow(\type_{from}\to\type_{to} = \term)}{\tyEnv}{\term_2}{\type_2}
+  }
+  { \txTerm{\thEnv}{\imEnv}{\tyEnv}{(\iLocal{A_{Impl}}{\type_{from}}{\type_{to}}{\term_1}{\term_2})}{\type_2} }
+  \\[5mm]
+  \inferrule*[right=Constraint Introduction]
+             {\txTerm{\langle \overline{R_S};\overline{R_I};\overline{R_L},Cls \rangle}{\imEnv}{\tyEnv}{\term}{\type}}
+             {\txTerm{\langle \overline{R_S};\overline{R_I};\overline{R_L}\rangle}{\imEnv}{\tyEnv}{\term}{Cls\Rightarrow\type} }
+  \\[5mm]
+  \inferrule*[right=Constraint Elimination]
+             {\txTerm{\thEnv}{\imEnv}{\tyEnv}{\term}{Cls \Rightarrow \type}\\
+               \thEnv \vDash Cls  }
+             {\txTerm{\thEnv}{\imEnv}{\tyEnv}{\term}{\type} }
+
+\end{array}
+\]
+  \caption{Term Typing}
+\end{figure}
+%~~~~~~~~~~~
+% ALGORITHM
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+\begin{figure}
+\begin{flushleft}
+  \namedRuleform{ \elabTerm{\thEnv}{\imEnv}{\tyEnv}{\term}{\type}{\term'}}
+                {}
+\end{flushleft}
+\[
+\inferrule*[]
+           {\infTermTrans{\imEnv}{\tyEnv}{\term}{\type}{E}{Y}{\term'}}
+           {\elabTerm{\thEnv}{\imEnv}{\tyEnv}{\term}{\varphi(\Theta(\type))}{\varphi(\term')}}
+\]
+\[
+{\Theta = unify(E)}
+\]
+\[
+\begin{array}{@{\hspace{0mm}}c@{\hspace{0mm}}}
+{unify(\bullet)=\bullet}  \quad\quad unify(E, a \sim a) = unify(E)           
+           \\[5mm]
+             {unify(E, \type \sim \tyVar = unify(E) \circ [\type/\tyVar]}
+               \quad\quad
+{unify(E, \tyVar \sim \type = unify(E) \circ [\type/\tyVar]}
+           \\[5mm]
+{unify(E, (\type_1 \to \type_2) \sim (\type_3 \to \type_4)) = unify(E,\type_1 \sim \type_3,\type_2 \sim \type_4)}
+           
+\end{array}           
+\]
+\\[5mm]
+\[
+{\varphi = resolve(f(Y))}
+\]
+
+\[
+\begin{array}{@{\hspace{0mm}}c@{\hspace{0mm}}}
+  resolve(\bullet)=\bullet
+  \quad \quad
+
+  \inferrule*[]
+             {
+               \imResSubs{\imEnv}{j}{\type_1}{\type_2}{\varphi}
+             }
+             {resolve(X,j : \type_1 \rightsquigarrow \type_2)=resolve(X) \circ \varphi
+             }
+
+           
+\end{array}           
+\]
+  \caption{Algorithm1}
+\end{figure}
+\begin{figure}
+\begin{flushleft}
+  \namedRuleform{ \infTermTrans{\imEnv}{\tyEnv}{\term}{\type}{\eqCts}{\imCts}{\term'}}
+                {Type Inference and Partial Translation}
+\end{flushleft}
+\[
+\begin{array}{@{\hspace{0mm}}c@{\hspace{0mm}}}
+  \inferrule*[right=Var]
+             {(\tmVar : \type)\in\tyEnv}
+             {\infTermTrans{\imEnv}{\tyEnv}{\tmVar}{\type}{\bullet}{\bullet}{\tmVar}}
+
+             \quad\quad
+             
+  \inferrule*[right=Constr]
+             {(K:\forall \tyVar . \type) \in \tyEnv}
+             {\infTermTrans{\imEnv}{\tyEnv}{K}{[\tyVar \mapsto \type']\type}{\bullet}{\bullet}{K}}
+            \\[5mm]
+
+  \inferrule*[right=Abstraction]
+             {\infTermTrans{\imEnv}{\tyEnv,\tmVar:\tyVar}{\term}{\type}{\eqCts}{\imCts}{\term'}}
+             {\infTermTrans{\imEnv}{\tyEnv}{\lambda \tmVar . \term}{\tyVar \rightarrow \type}{\eqCts}{\imCts}{\term'}}
+
+\\[5mm]
+  
+  \inferrule*[right=Application]
+  {
+  \infTermTrans{\imEnv}{\tyEnv}{\term_1}{\type_1}{\eqCts_1}{\imCts_1}{\term_1'} \\
+  \infTermTrans{\imEnv}{\tyEnv}{\term_2}{\type_2}{\eqCts_2}{\imCts_2}{\term_2'}
+  \\ fresh\;j
+  }
+  { \infTermTrans{\imEnv}{\tyEnv}{\term_1 \term_2}{\tyVar}{\eqCts_1 + \eqCts_2 + (\type_1 \sim b \rightarrow a)}{\imCts_1 +\imCts_2 + \namedImRes{\imEnv}{j}{\type_2}{b}}{\term_1'(j \; \term_2')} }
+  
+  \\[5mm]
+  
+  \inferrule*[right=Case]
+             {(K : \forall a . \overline{\type} \rightarrow T \;a)\in \tyEnv
+               \\
+               \infTermTrans{\imEnv}{\tyEnv}{e_1}{\type_1}{E_1}{Y_1}{e_1'}
+               \\
+               \infTermTrans{\imEnv}{\tyEnv,\overline{\tmVar}:[a\mapsto b]\overline{\type}}{e_2}{\type_2}{E_2}{Y_2}{e_2'}
+               \\
+               fresh\;j
+             }
+             {\infTermTrans{\imEnv}{\tyEnv}{case\;e_1\;of\;(K\;x)\rightarrow e_2}{\type_2}{E_1+E_2}{Y_1+Y_2+\namedImRes{\imEnv}{j}{\type_1}{T\;b}}{case\;(j\;e_1')\;of\;(K\;\tmVar)\rightarrow e_2'}}
+
+\end{array}
+\]
+
+\begin{flushleft}
+  \namedRuleform{ \imResSubs{\imEnv}{j}{\type_1}{\type_2}{\varphi}}
+                {Implicit Conversion Resolution and Subst}
+\end{flushleft}
+
+\[
+  \inferrule*[right=Aux]
+             {
+               \imResiSubs{\bullet}{\imEnv}{j}{\type_1}{\type_2}{\varphi}{\Theta}
+             }
+             {
+               \imResSubs{\imEnv}{j}{\type_1}{\type_2}{\varphi}
+             }
+  %;[fv(\type_1)\mapsto \overline{\type_{1i}},fv(\type_2)\mapsto \overline{\type_{2i}}]
+  \]
+  
+\begin{flushleft}
+  \namedRuleform{ \imResiSubs{\overline{\type}}{\imEnv}{j}{\type_1}{\type_2}{\varphi}{\Theta}}
+                {Implicit Conversion Resolution with Loop Detection}
+\end{flushleft}
+
+\[
+\begin{array}{@{\hspace{0mm}}c@{\hspace{0mm}}}
+
+\inferrule*[right=Unification]
+  {
+  [fv(\type_1)\mapsto \overline{\type_{1i}}]\type_1=[fv(\type_2)\mapsto \overline{\type_{2i}}]\type_2
+  }
+  { \imResiSubs{\overline{\type}}{\imEnv}{j}{\type_1}{\type_2}{[j \mapsto id]}{[fv(\type_1)\mapsto \overline{\type_{1i}},fv(\type_2)\mapsto \overline{\type_{2i}}]} }
+  \\[5mm]
+  \inferrule*[right=Transitivity]
+  {
+    (\forall \overline{\tyVar}.Cond \Rightarrow \type_1' \rightsquigarrow \type_3'=expr_{fst}) \in \imEnv
+    \\
+    \type_1 = [\overline{\tyVar}\mapsto \overline{\type_a}]\type_1'
+    \\
+    \type_3 = [\overline{\tyVar}\mapsto \overline{\type_a}]\type_3'
+    \\
+    \type_3 \notin \overline{\type}
+    \\
+    \forall\; cond_i \in [\overline{a} \mapsto \overline{\type_a}]Cond\;:\;(\imResSubs{\imEnv}{cond_i}{\type_{i1}}{\type_{i2}}{\Theta_i}{\varphi_i})
+    \\
+    \imResiSubs{\overline{\type},\type_1}{\imEnv}{conv_{rest}}{(\overline{\varphi_i}\;\type_3)}{\type_2}{\Theta_{rest}}{\varphi_{rest}}
+  }
+{ \imResiSubs{\overline{\type}}{\imEnv}{conv}{\type_1}{\type_2}{[conv \mapsto (\Theta_{rest}\;conv_{rest}) \circ (\overline{\Theta_i}\; ([\overline{a} \mapsto \overline{\type_a}]expr_{fst}))]}{\varphi_{rest} \circ \overline{\varphi_i} \circ [\overline{\tyVar}\mapsto \overline{\type_a}]}}
+% { \imResiSubs{\overline{\type}}{\imEnv}{conv}{\type_1}{\type_2}{[conv \mapsto (\Theta_{rest}\;conv_{rest}) \circ (conv_{fst}\;\type_a\; \overline{\Theta_i\;cond_i} ))]}}
+
+  \end{array}
+\]  
+  \caption{Algorithm}
+\end{figure}
+
+\end{document}
