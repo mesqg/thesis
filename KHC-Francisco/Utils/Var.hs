@@ -46,6 +46,7 @@ mkSym = MkSym
 
 data Name = MkName { name_name   :: Sym
                    , name_unique :: Unique }
+            deriving Show
 
 instance Uniquable Name where
     getUnique = name_unique
@@ -84,6 +85,11 @@ instance Eq a => Eq (HsTyVar a) where
   (PsTyVar a  ) == (PsTyVar b  ) = (a == b)
   (RnTyVar a _) == (RnTyVar b _) = (a == b)
   _ == _ = error "We need >= GHC 8.0 to avoid this.."
+
+instance Show a => Show (HsTyVar a) where
+  show (PsTyVar a  ) = show a
+  show (RnTyVar a _) = show a
+  show _ = error "We need >= GHC 8.0 to avoid this.."  
 
 -- | Parsed term and type variables
 type PsTmVar = HsTmVar Sym

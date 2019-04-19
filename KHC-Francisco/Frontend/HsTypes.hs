@@ -32,6 +32,8 @@ instance Named a => Named (HsTyCon a) where
 
 type PsTyCon = HsTyCon Sym
 type RnTyCon = HsTyCon Name
+instance Show RnTyCon where
+  show (HsTC x) = show x
 
 data HsTyConInfo
   = HsTCInfo { hs_tc_ty_con    :: RnTyCon     -- ^ The type constructor name
@@ -195,6 +197,9 @@ data QualConvTy a = QCTC (MonoConvTy a) (QualConvTy a)
                    | QCTS (MonoConvTy a)
 data MonoConvTy a = MCT (MonoTy a) (MonoTy a)
 
+instance Show RnMonoConvTy where
+  show (MCT a b) = show a++" ~> "++show b
+
 -- | Parsed/renamed MonoConvType
 type PsMonoConvTy = MonoConvTy Sym
 type RnMonoConvTy = MonoConvTy Name
@@ -214,10 +219,22 @@ type RnPolyConvTy = PolyConvTy Name
 data MonoTy a = TyCon (HsTyCon a)           -- ^ Type Constructor
               | TyApp (MonoTy a) (MonoTy a) -- ^ Type Application
               | TyVar (HsTyVar a)           -- ^ Type variable
+              
+       
+--instance Eq (MonoTy x) where
 
 -- | Parsed/renamed monotype
 type PsMonoTy = MonoTy Sym
 type RnMonoTy = MonoTy Name
+instance Show RnMonoTy where
+  show (TyCon a) = "TyCon "++show a
+  show (TyApp a b) = "TyApp"++show a++" , "++show b
+  show (TyVar a) = "TyVar"++show a
+instance Eq RnMonoTy where
+  (==) (TyCon a) (TyCon b) = (==) a b
+  (==) (TyApp a b) (TyApp c d) = (==) a c && (==) b d
+  (==) (TyVar a) (TyVar b) = (==) a b
+  (==) _ _ = False
 
 -- | Qualified Type
 data QualTy a = QMono (MonoTy a)
@@ -465,14 +482,21 @@ progTheoryFromSimple = fmap (\(d :| c) -> d :| constructCtr ([],[],c))
 
 
 -- |NEW
+--type GraphOfTypes = [(RnMonoTy,RnMonoTy)]
 type YCs = SnocList YCt
+instance Show YCs where
+  show SN = "SN"
+  show (xs:>x) = show x++" :> "++show xs
 data YCt = YCt FcTmVar RnMonoConvTy
+
+instance Show YCt where
+  show (YCt _ b) = "YCt: "++show b
 
 data FullTheory = FT { theory_super :: ProgramTheory
                      , theory_inst  :: ProgramTheory
                      , theory_local :: ProgramTheory
                      }
-data ConvAxiom = UC RnMonoConvTy FcTerm
+data ConvAxiom = UC RnMonoConvTy FcTerm | CV_Nil
 type ImplicitTheory = SnocList ConvAxiom {-it :: SnocList ConvAxiom
                         -- , local :: SnocList MonoConvTy
                         -}

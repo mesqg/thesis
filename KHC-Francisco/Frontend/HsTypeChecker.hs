@@ -31,7 +31,8 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Except
 import Control.Arrow (second)
-import Data.List (nub,permutations)
+import Data.List (nub,intersect,union)
+import Debug.Trace
 
 -- * Create the typechecking environment from the renaming one
 -- ------------------------------------------------------------------------------
@@ -588,16 +589,10 @@ occursCheck a (TyVar b)       = a /= b
 -- | Completely entail the set of Implicit constraints. This allows to try several orders in which to solve the set.
 solveY :: YCs -> ImplicitTheory -> TcM (FcTmSubst,HsTySubst)
 solveY ycs it = do
-    let perm = (listToSnocList . (map listToSnocList) . permutations . snocListToList) ycs
-    (subst,ty_subst) <- runSolverFirstM $ liftSolveM (snocListChooseM perm (\ycs -> meta ycs it)) >>= SolveM . selectListT;
-    return (subst,ty_subst)
-  `catchError` (\_-> throwError "solveY")
-    where 
-      meta :: YCs -> ImplicitTheory -> TcM (Maybe (FcTmSubst,HsTySubst))
-      meta ycs it =  do
-          x<- entailYcs ycs it
-          return $ Just x
-        `catchError` (\_->return Nothing)
+  x <- f ycs it
+  entailYcs x it
+  `catchError` (\s-> throwError (s++" :solveY"))
+   
   
 -- TODO duplicated code! -}
 -- | Completely entail a set of conversion constraints. Fail if not possible
@@ -609,9 +604,9 @@ entailYcs (xs :> x) it = do
   return (rest <> subst, ty_subst2 <> ty_subst)
 
 entailYct :: [RnTyVar] ->  ImplicitTheory -> YCs -> TcM (FcTmSubst,HsTySubst)
-entailYct untch theory ctrs = do
-     x <- runSolverFirstM (go ctrs)
-     return x
+entailYct untch theory yct = do
+     x <- runSolverFirstM (go yct)
+     return  x
   where
     go (cs :> c) = do
       (ycs,subst1,ty_subst1) <- rightEntailsBacktracQ untch theory c
@@ -620,36 +615,91 @@ entailYct untch theory ctrs = do
         otherwise -> do
          (subst2,ty_subst2) <- go  ycs
          return (subst2 <> subst1,ty_subst2 <> ty_subst1)
--- | Performs a single right entailment step.
---   a) fail if the constraint is not entailed by the given implicit theory
---   b) return the new wanted implicit constraints, the System F term subsitution and the type substitutions to apply on the remaining constraints.
+
 rightEntailsBacktracQ :: [RnTyVar] -> ImplicitTheory -> YCt
                       -> SolveM (YCs,FcTmSubst,HsTySubst)
-rightEntailsBacktracQ untch it yct = liftSolveM (snocListChooseM it left_entail) >>= SolveM . selectListT
+rightEntailsBacktracQ untch it yct = liftSolveM (snocListChooseM (it:>CV_Nil) left_entail) >>= SolveM . selectListT
   where
     left_entail conv_axiom = leftEntailsIConv untch conv_axiom yct
 
--- | Checks whether the implicit constraint is entailed by the given constraint
---   a) fails if not
---   b) return the new wanted constraints, the System F term substitution and the type substitutions to apply on the remaining constraints.
 leftEntailsIConv :: [RnTyVar] -> ConvAxiom -> YCt
             -> TcM (Maybe (YCs, FcTmSubst,HsTySubst))
-leftEntailsIConv untch (UC (MCT a b) exp) (YCt j (MCT ty1 ty2))
+leftEntailsIConv untch CV_Nil (YCt j (MCT ty1 ty2))
   | Right ty_subst <- unify [] [ty1 :~: ty2] = do
               x <- freshFcTmVar
               t0 <-  elabMonoTy (substInMonoTy ty_subst ty1)
               let id = FcTmAbs x t0 (FcTmVar x)
               return $ Just (SN, j |-> id,ty_subst)
+  | otherwise = return Nothing              
+leftEntailsIConv untch (UC (MCT a b) exp) (YCt j (MCT ty1 ty2))
   | Right ty_subst <- unify [] [ty1 :~: a]  = do
     x <- freshFcTmVar
     b' <- elabMonoTy b
     ty2' <- elabMonoTy ty2
     let yct = substInYCt ty_subst (YCt x (MCT b ty2))
-    --return (,ty_subst2 <> ty_subst)
     return $ Just (singletonSnocList yct , j |-> FcTmApp (FcTmVar x) exp,ty_subst)
   | Left _         <- unify [] [ty1 :~: a]  = return Nothing
 
+  
+-- | the f function in the specification. "prepares" the YCs to be solved directly later.
+f :: YCs -> ImplicitTheory -> TcM(YCs)
+f ycs it = step2 (step1 ycs ycs) it
 
+-- | looking for the types reachable from `init`
+reachable :: RnMonoTy -> ImplicitTheory -> [RnMonoTy]
+reachable init it = aux [] [init] it
+   where 
+         aux :: [RnMonoTy]->[RnMonoTy]->ImplicitTheory->[RnMonoTy]
+         aux acc q@(at:rest) (xs:>x) = case (onestep (acc `union` q) at x) of 
+             Just v -> aux acc (q++[v]) xs
+             Nothing -> aux acc q xs
+         aux acc (at:rest) SN = aux (at:acc) rest it
+         aux acc [] _ = acc
+
+         onestep :: [RnMonoTy]->RnMonoTy->ConvAxiom->Maybe RnMonoTy
+         onestep old at (UC (MCT a b) exp)
+          | Right ty_subst <- unify [] [at :~: a] =
+              if (substInMonoTy ty_subst b) `elem` old then Nothing else
+                Just (substInMonoTy ty_subst b)
+          | Left _         <- unify [] [at :~: a] = Nothing
+          
+-- | propagates type to vars with only one incomming edge
+step1 :: YCs -> YCs->YCs
+step1 (rest:>conv@(YCt _ (MCT a (TyVar b)))) all
+ | one_incomming (TyVar b) all 0 = (step1 rest all):>(substInYCt ( b |-> a) conv)
+ | otherwise      = (step1 rest all):>conv
+ where one_incomming b SN 1 = True
+       one_incomming b SN _ = False
+       one_incomming b (xs:>x@(YCt _ (MCT _ c))) i = if c == b then (one_incomming b xs (i+1)) else one_incomming b xs i
+step1 SN _ = SN
+
+-- | look for a common type where they can meet
+step2 :: YCs -> ImplicitTheory -> TcM(YCs)
+step2 ycs it = aux2 ycs it
+ where
+  aux2 :: YCs -> ImplicitTheory -> TcM(YCs)
+  aux2 SN _ = return SN
+  aux2 (rest:>conv@(YCt _ (MCT a b))) it = case b of
+    (TyVar x) -> let new = (foldr intersect (reachable (head (incomming b ycs)) it)
+                                                       (map (\x->reachable x it) (tail (incomming b ycs)))) in
+                      --   ) in
+     case length new of
+       0 -> throwError ("no overlap")
+       1 -> let subst = x |-> (new!!0) in
+              do
+                x <- (step2 (substInYCs subst rest) it)
+                return (x:>(substInYCt subst conv))
+       otherwise -> throwError ("ambiguous")--TODO, not that simple!     
+    otherwise -> do
+      x <- (aux2 rest it)
+      return (x:>conv)
+
+  incomming :: RnMonoTy -> YCs -> [RnMonoTy]
+  incomming at const = aux_in at [] const
+
+  aux_in :: RnMonoTy -> [RnMonoTy] -> YCs -> [RnMonoTy]
+  aux_in at acc (rest:>conv@(YCt _ (MCT a c))) = if at==c then aux_in at (a:acc) rest else aux_in at acc rest
+  aux_in at acc SN = acc
 
   
 -- * Overlap Checking
@@ -977,7 +1027,7 @@ elabTermWithSig untch it theory tm poly_ty = do
 
     -- NEW: YCs
   let refined_wanted_ics = substInYCs ty_subst wanted_ics                       -- refine the wanted implicit conversion constraints
-  (subst_place_holding_vars,ty_subst2) <- solveY refined_wanted_ics it
+  (subst_place_holding_vars,ty_subst2) <- solveY refined_wanted_ics it 
     -- End NEW
 
   ev_subst <- do
@@ -1050,7 +1100,7 @@ elabTermSimpl theory it tm = do
   ty_subst <- unify mempty $ wanted_eqs -- Solve the needed equalities first
 
 --  let refined_wanted_ccs = substInSimpleProgramTheory ty_subst wanted_ccs       -- refine the wanted class constraints
-  let refined_wanted_ics = substInYCs ty_subst wanted_ics                       -- refine the wanted implicit conversion constraints
+  let refined_wanted_ics = substInYCs ty_subst wanted_ics                      -- refine the wanted implicit conversion constraints
   let refined_mono_ty    = substInMonoTy              ty_subst mono_ty          -- refine the monotype
   refined_fc_tm <- elabHsTySubst ty_subst >>= return . flip substFcTyInTm fc_tm -- refine the term
 

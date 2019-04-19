@@ -10,7 +10,7 @@ data Dreamz = D
 implicit yupa : Dreamz Chuck =\x. C
 implicit yamano : Arm Bool = \x. B
 implicit yeye : Bool Chuck = \x. C
-implicit f : Dreamz Arm = \x. A  
+--implicit f : Dreamz Arm = \x. A  
 
 class Eq a :: * where
   equals :: a -> a -> Bool
@@ -29,7 +29,7 @@ instance Eq Chuck where
 
 --(equals B A) --all good
 --(equals C A)
---(equals A D) -- nop
+(equals A D) -- nop
 --(equals C B)
 --(equals Yeah AA) --no backtracking
-(\x. equals A x)(equals D B)
+--(equals A (equals D B))
