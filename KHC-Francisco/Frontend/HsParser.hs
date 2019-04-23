@@ -136,8 +136,8 @@ pIConvDecl :: PsM PsIConvDecl
 pIConvDecl  =  indent $ IConvD
          <$  symbol "implicit"
          <*> pTmVar--pIConv
-         <*  symbol ":" 
-         <*> pPolyConvTy -- TODO!
+         <*  symbol ":"
+         <*> pPolyConvTy
          <*  symbol "="
          <*> pTerm
 
@@ -194,15 +194,16 @@ pDataCon = HsDC <$> upperIdent <?> "a data constructor"
 pMonoConvTy :: PsM PsMonoConvTy
 pMonoConvTy = MCT <$>  pPrimTy <*>  pPrimTy
 
--- | Parse a qualified conversion type -- Type Well-formedness says 1 constraint
+{-- | Parse a qualified conversion type -- Type Well-formedness says 1 constraint
 pQualConvTy :: PsM PsQualConvTy
 pQualConvTy =
   try (QCTC <$> pMonoConvTy <* symbol "=>" <*> pQualConvTy) <|> QCTS <$> pMonoConvTy
-
+-}
 pPolyConvTy :: PsM PsPolyConvTy
 pPolyConvTy =
-  PCTC <$ symbol "forall" <*> parens pTyVarWithKind <* dot <*> pPolyConvTy <|>
-  PCTS <$> pQualConvTy
+  --PCT <$ symbol "forall" <*> sepBy1 (parens pTyVarWithKind) (symbol ",") <* dot <*> sepBy1 pMonoConvTy (symbol ",") <* (symbol "=>") <*> pMonoConvTy
+  PCT <$> many (parens pTyVarWithKind) <* (optional dot) <*> many (parens pMonoConvTy)  <* (optional (symbol "=>")) <*> pMonoConvTy
+  
 
 
   

@@ -631,15 +631,25 @@ leftEntailsIConv untch CV_Nil (YCt j (MCT ty1 ty2))
               let id = FcTmAbs x t0 (FcTmVar x)
               return $ Just (SN, j |-> id,ty_subst)
   | otherwise = return Nothing              
-leftEntailsIConv untch (UC (MCT a b) exp) (YCt j (MCT ty1 ty2))
+leftEntailsIConv untch (MCA (MCT a b) exp) (YCt j (MCT ty1 ty2))
   | Right ty_subst <- unify [] [ty1 :~: a]  = do
     x <- freshFcTmVar
     b' <- elabMonoTy b
     ty2' <- elabMonoTy ty2
     let yct = substInYCt ty_subst (YCt x (MCT b ty2))
     return $ Just (singletonSnocList yct , j |-> FcTmApp (FcTmVar x) exp,ty_subst)
-  | Left _         <- unify [] [ty1 :~: a]  = return Nothing
-
+  | otherwise  = return Nothing
+leftEntailsIConv untch (PCA (PCT _ conds (MCT a b)) exp) (YCt j (MCT ty1 ty2))
+  | Right ty_subst <- unify [] [ty1 :~: a]  = do
+--    (inst_exp,ty_subst2) <- solveConds (substInYCs conds)
+    x <- freshFcTmVar
+    b' <- elabMonoTy b
+    ty2' <- elabMonoTy ty2
+    let yct = substInYCt ty_subst (YCt x (MCT b ty2))
+    return $ Just (singletonSnocList yct , j |-> FcTmApp (FcTmVar x) exp,ty_subst)
+  | otherwise  = return Nothing
+  -- solve constraints (in order to ty1) and get subst, apply it and then check
+  
   
 -- | the f function in the specification. "prepares" the YCs to be solved directly later.
 f :: YCs -> ImplicitTheory -> TcM(YCs)
@@ -657,11 +667,19 @@ reachable init it = aux [] [init] it
          aux acc [] _ = acc
 
          onestep :: [RnMonoTy]->RnMonoTy->ConvAxiom->Maybe RnMonoTy
-         onestep old at (UC (MCT a b) exp)
+         onestep old at (MCA (MCT a b) exp)
           | Right ty_subst <- unify [] [at :~: a] =
               if (substInMonoTy ty_subst b) `elem` old then Nothing else
                 Just (substInMonoTy ty_subst b)
           | Left _         <- unify [] [at :~: a] = Nothing
+         onestep old at (PCA pct@(PCT vars conds mono@(MCT a b)) exp) 
+           | Right ty_subst <-  unify [] [at :~: a] = if ((substInMonoTy ty_subst b) `elem` old) && (sat conds)
+             then Nothing
+             else Just (substInMonoTy ty_subst b)
+           | otherwise = Nothing   
+           
+         sat :: [RnMonoConvTy] -> Bool
+         sat _ = True
           
 -- | propagates type to vars with only one incomming edge
 step1 :: YCs -> YCs->YCs
@@ -689,7 +707,8 @@ step2 ycs it = aux2 ycs it
               do
                 x <- (step2 (substInYCs subst rest) it)
                 return (x:>(substInYCt subst conv))
-       otherwise -> throwError ("ambiguous")--TODO, not that simple!     
+       otherwise -> --step3 it new
+         throwError ("ambiguous")--TODO, not that simple!     
     otherwise -> do
       x <- (aux2 rest it)
       return (x:>conv)
@@ -1069,7 +1088,7 @@ elabHsTySubst = mapSubM (return . rnTyVarToFcTyVar) elabMonoTy
 --plenty TO DO's... ugly baked in things. Only MonoConversions!
 -- GJ: Uhm... We'll go through this function together in the next meeting...
 elabIConvDecl :: FullTheory -> ImplicitTheory -> RnIConvDecl -> TcM (FcValBind, ImplicitTheory)
-elabIConvDecl ft implt (IConvD name pct@(PCTS (QCTS (MCT a b))) exp) = do
+{-elabIConvDecl ft implt (IConvD name pct@(PCTS (QCTS (MCT a b))) exp) = do
      let (xa,xb,xc) = destructPolyConvTy pct
      (rn_poly_ty, elab_exp) <- elabTermSimpl (ftDropSuper ft) implt exp -- TODO: add the conditions to a 'local' implicit theory used to elab the expression
      -- Check the implicit does what it claims to do.
@@ -1086,7 +1105,28 @@ elabIConvDecl ft implt (IConvD name pct@(PCTS (QCTS (MCT a b))) exp) = do
      let fc_type = mkFcArrowTy fc_a fc_b
      let fc_val_bind = FcValBind fcname fc_type ugly
      return (fc_val_bind,ext_it)
-  
+-}
+
+elabIConvDecl ft implt (IConvD name pct@(PCT vars conds monoty@(MCT a b)) exp) = do
+     --make sure tyVars are fine
+     (rn_poly_ty, elab_exp) <- elabTermSimpl (ftDropSuper ft) implt exp -- TODO: add the conditions to a 'local' implicit theory used to elab the expression
+     -- Check the implicit does what it claims to do.
+     do
+       {-[mono_ty] <- polyTysToMonoTysM [(instMethodTy2 a rn_poly_ty)]
+       unify (ftyvsOf a++ ftyvsOf b)  [ mono_ty :~: (mkRnArrowTy [a] b)]
+      `catchError` (\_-> throwError ("Implicit  "++ (render . ppr) name++" is lying ."))    
+     -- Preparing the output -}
+     fc_a <- elabMonoTy a
+     fc_b <- elabMonoTy b
+     let ugly = (FcTmTyApp elab_exp fc_a)
+     let ext_it = case conds of
+           [] -> implt `itExtend` (MCA monoty ugly)
+           otherwise -> implt `itExtend` (PCA pct ugly)
+     let fcname = rnTmVarToFcTmVar name
+     let fc_type = mkFcArrowTy fc_a fc_b
+     let fc_val_bind = FcValBind fcname fc_type ugly
+     return (fc_val_bind,ext_it)
+
 
 -- * Type Inference With Constraint Simplification
 -- ------------------------------------------------------------------------------

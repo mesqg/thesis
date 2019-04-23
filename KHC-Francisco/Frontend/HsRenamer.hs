@@ -200,8 +200,17 @@ rnPolyTy (PPoly a ty) = do
 
 -- | Rename a conversion
 rnPolyConvTy :: PsPolyConvTy -> RnM RnPolyConvTy
-rnPolyConvTy (PCTS ty)   = PCTS <$> rnQualConvTy ty
-rnPolyConvTy (PCTC a ty) = do
+rnPolyConvTy (PCT vars conds mono) =
+  let f = \x -> do
+        c <- rnTyVar x
+        return (c :| kindOf c)
+  in
+    do
+  a <- (mapM f vars)
+  b <- (mapM rnMonoConvTy conds)
+  c <- (rnMonoConvTy mono)
+  return (PCT a b c)
+{-rnPolyConvTy (PCT a ty) = do
   rna  <- rnTyVar a
   rnty <- extendCtxTyM (labelOf a) rna (rnPolyConvTy ty)
   return (PCTC (rna :| kindOf rna) rnty)
@@ -210,7 +219,7 @@ rnPolyConvTy (PCTC a ty) = do
 rnQualConvTy :: PsQualConvTy -> RnM RnQualConvTy
 rnQualConvTy (QCTS ty)    = QCTS <$> rnMonoConvTy ty
 rnQualConvTy (QCTC ct ty) = QCTC <$> rnMonoConvTy ct <*> rnQualConvTy ty  
-
+-}
 -- | Rename MonoConvTy  
 rnMonoConvTy :: PsMonoConvTy -> RnM RnMonoConvTy
 rnMonoConvTy (MCT a b) = MCT <$> rnMonoTy a <*> rnMonoTy b

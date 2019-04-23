@@ -187,15 +187,15 @@ hsTyPatToMonoTy (HsTyVarPat (a :| _kind)) = TyVar a
 -- GJ: This will work just fine, but it might be slight overkill.
 -- I don't think we ever need to use a QualConvTy?
 -- So I personally would have gone for
--- data MonoConvTy a = MCT (MonoTy a) (MonoTy a)
--- data PolyConvTy a = PCT [HsTyVarWithKind a] [MonoConvTy a] (MonoConvTy a)
+data MonoConvTy a = MCT (MonoTy a) (MonoTy a)
+data PolyConvTy a = PCT [HsTyVarWithKind a] [MonoConvTy a] (MonoConvTy a)
 -- Just personal preference :)
 -- F: I agree: I was having difficulties parsing
-data PolyConvTy a  = PCTC (HsTyVarWithKind a) (PolyConvTy a)
-                   | PCTS (QualConvTy a)
-data QualConvTy a = QCTC (MonoConvTy a) (QualConvTy a)
-                   | QCTS (MonoConvTy a)
-data MonoConvTy a = MCT (MonoTy a) (MonoTy a)
+--data PolyConvTy a  = PCTC (HsTyVarWithKind a) (PolyConvTy a)
+--                   | PCTS (QualConvTy a)
+--data QualConvTy a = QCTC (MonoConvTy a) (QualConvTy a)
+--                   | QCTS (MonoConvTy a)
+--data MonoConvTy a = MCT (MonoTy a) (MonoTy a)
 
 instance Show RnMonoConvTy where
   show (MCT a b) = show a++" ~> "++show b
@@ -204,10 +204,10 @@ instance Show RnMonoConvTy where
 type PsMonoConvTy = MonoConvTy Sym
 type RnMonoConvTy = MonoConvTy Name
 
--- | Parsed/renamed QualyConvType
+{-- | Parsed/renamed QualyConvType
 type PsQualConvTy = QualConvTy Sym
 type RnQualConvTy = QualConvTy Name
-
+-}
 -- | Parsed/renamed PolyConvType
 type PsPolyConvTy = PolyConvTy Sym
 type RnPolyConvTy = PolyConvTy Name
@@ -350,7 +350,7 @@ constructQualTy (cs, ty) = foldr QQual (QMono ty) cs
 
 
 
---TODO! Its dupplicated code...
+{--TODO! Its dupplicated code...
 -- | Take a polytype apart
 destructPolyConvTy :: PolyConvTy a -> ([HsTyVarWithKind a], [MonoConvTy a], MonoConvTy a)
 destructPolyConvTy (PCTS   ty) = ([]  , cs, ty') where     (cs, ty') = destructQualConvTy ty
@@ -369,7 +369,7 @@ constructPolyConvTy (as, cs, ty) = foldr PCTC (PCTS (constructQualConvTy (cs,ty)
 -- | Inverse of destructQualConvTy: create a qualified type from parts
 constructQualConvTy :: ([MonoConvTy a], MonoConvTy a) -> QualConvTy a
 constructQualConvTy (cs, ty) = foldr QCTC (QCTS ty) cs
-
+-}
 -- * Constraints
 -- ------------------------------------------------------------------------------
 
@@ -496,7 +496,7 @@ data FullTheory = FT { theory_super :: ProgramTheory
                      , theory_inst  :: ProgramTheory
                      , theory_local :: ProgramTheory
                      }
-data ConvAxiom = UC RnMonoConvTy FcTerm | CV_Nil
+data ConvAxiom = PCA RnPolyConvTy FcTerm | MCA RnMonoConvTy FcTerm | CV_Nil
 type ImplicitTheory = SnocList ConvAxiom {-it :: SnocList ConvAxiom
                         -- , local :: SnocList MonoConvTy
                         -}
