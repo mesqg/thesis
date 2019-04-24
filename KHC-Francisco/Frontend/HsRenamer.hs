@@ -205,9 +205,14 @@ rnPolyConvTy (PCT vars conds mono) =
         c <- rnTyVar x
         return (c :| kindOf c)
   in
+    let f2 = \(a,b) -> do
+          xa <- rnTmVar a
+          xb <- rnMonoConvTy b
+          return (xa,xb)
+    in
     do
   a <- (mapM f vars)
-  b <- (mapM rnMonoConvTy conds)
+  b <- (mapM f2 conds)
   c <- (rnMonoConvTy mono)
   return (PCT a b c)
 {-rnPolyConvTy (PCT a ty) = do
@@ -376,7 +381,7 @@ rnDataDecl (DataD tc as dcs) = do
 
   -- | TODO! Rename an implicit declaration
 rnIConvDecl :: PsIConvDecl -> RnM RnIConvDecl
-rnIConvDecl (IConvD iconv ty exp) = do
+rnIConvDecl (IConvD iconv ty@(PCT _ psPairs _) exp) = do
     -- Rename the class name
   rn_cnv <- rnTmVar iconv{-do
     cnv_infos <- getCnvInfoRnM
@@ -387,8 +392,10 @@ rnIConvDecl (IConvD iconv ty exp) = do
     -- Store the conversion info in the global environment
   --addCnvInfoRnM iconv (HsICInfo rn_cnv)
   
-  rn_ty       <- rnPolyConvTy ty  
-  rn_exp      <- rnTerm exp                        -- rename the conversion implementation
+  rn_ty@(PCT _ rnPairs _)        <- rnPolyConvTy ty
+  let (psVars,rnVars) = (map fst psPairs, map fst rnPairs)
+  rn_exp      <- extendCtxTmsM psVars rnVars (rnTerm exp)
+--  rn_exp      <- rnTerm exp                        -- rename the conversion implementation
   return (IConvD rn_cnv rn_ty rn_exp)
 
 -- | Rename a program

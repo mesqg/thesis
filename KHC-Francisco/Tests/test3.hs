@@ -5,14 +5,17 @@ data Arm = A
 data Bool = B
 data Chuck  = C
 data Dreamz = D
+data Fail = F
 --data List a = Cons a
 --comment yoley out to see it working
 --implicit yoley : Bool Arm = \x. D --Use to see that the 
-implicit yupa : (a :: *) . (Arm Bool) => Dreamz Chuck =\x. C
+implicit yupa : (a :: *) . (i : Arm ~> Bool) => Dreamz ~> Chuck =\x. C
 --implicit yupaa : (a :: *) . Dreamz Chuck =\x. C
-implicit yamano : Arm Bool = \x. B
-implicit yeye : Bool  Chuck = \x. C
---implicit f : Dreamz Arm = \x. A  
+implicit yamano : Arm ~> Bool = \x. B
+implicit yeye : Bool ~> Chuck = \x. C
+--implicit f : Dreamz Arm = \x. A
+--implicit yupa2 : (a :: *) . (Arm Bool) => Dreamz Chuck =\x. C
+
 
 class Eq a :: * where
   equals :: a -> a -> Bool

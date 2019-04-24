@@ -188,7 +188,7 @@ hsTyPatToMonoTy (HsTyVarPat (a :| _kind)) = TyVar a
 -- I don't think we ever need to use a QualConvTy?
 -- So I personally would have gone for
 data MonoConvTy a = MCT (MonoTy a) (MonoTy a)
-data PolyConvTy a = PCT [HsTyVarWithKind a] [MonoConvTy a] (MonoConvTy a)
+data PolyConvTy a = PCT [HsTyVarWithKind a] [(HsTmVar a,MonoConvTy a)] (MonoConvTy a)
 -- Just personal preference :)
 -- F: I agree: I was having difficulties parsing
 --data PolyConvTy a  = PCTC (HsTyVarWithKind a) (PolyConvTy a)
@@ -199,6 +199,10 @@ data PolyConvTy a = PCT [HsTyVarWithKind a] [MonoConvTy a] (MonoConvTy a)
 
 instance Show RnMonoConvTy where
   show (MCT a b) = show a++" ~> "++show b
+
+instance Show RnPolyConvTy where
+  show (PCT _ a b) = show a++" => "++show b
+  
 
 -- | Parsed/renamed MonoConvType
 type PsMonoConvTy = MonoConvTy Sym
@@ -497,6 +501,13 @@ data FullTheory = FT { theory_super :: ProgramTheory
                      , theory_local :: ProgramTheory
                      }
 data ConvAxiom = PCA RnPolyConvTy FcTerm | MCA RnMonoConvTy FcTerm | CV_Nil
+--data ConvAxiom = PCA  [(FcTmVar,RnMonoConvTy)] (RnMonoConvTy) FcTerm | MCA RnMonoConvTy FcTerm | CV_Nil
+
+instance Show ConvAxiom where
+  show (PCA  a _) = show a
+  show (MCA a _) = show a
+  show CV_Nil    = "CV_Nil"
+  
 type ImplicitTheory = SnocList ConvAxiom {-it :: SnocList ConvAxiom
                         -- , local :: SnocList MonoConvTy
                         -}

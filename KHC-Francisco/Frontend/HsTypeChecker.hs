@@ -590,67 +590,80 @@ occursCheck a (TyVar b)       = a /= b
 solveY :: YCs -> ImplicitTheory -> TcM (FcTmSubst,HsTySubst)
 solveY ycs it = do
   x <- f ycs it
-  entailYcs x it
+  auxSolveY [] x
   `catchError` (\s-> throwError (s++" :solveY"))
-   
   
--- TODO duplicated code! -}
--- | Completely entail a set of conversion constraints. Fail if not possible
-entailYcs :: YCs -> ImplicitTheory -> TcM (FcTmSubst,HsTySubst)
-entailYcs SN it = return mempty
-entailYcs (xs :> x) it = do
-  (subst,ty_subst) <- entailYct [] it (singletonSnocList x)
-  (rest,ty_subst2) <- entailYcs (substInYCs ty_subst xs) it
-  return (rest <> subst, ty_subst2 <> ty_subst)
+ where
+   auxSolveY untch ycs = entailYcs [] (trace "AUXSOLVEY" ycs) it
+   -- TODO duplicated code! -}
+   -- | Completely entail a set of conversion constraints. Failed if not possible
+   entailYcs :: [RnTyVar] -> YCs -> ImplicitTheory -> TcM (FcTmSubst,HsTySubst)
+   entailYcs _ SN it = return mempty
+   entailYcs untch (xs :> x) it = do
+     (subst,ty_subst) <- entailYct untch it (trace ("YCT!!!!"++ show (singletonSnocList x)) (singletonSnocList x))
+     (rest,ty_subst2) <- entailYcs untch (substInYCs ty_subst xs) it
+     return (rest <> subst, ty_subst2 <> ty_subst)
+    
+   entailYct :: [RnTyVar] ->  ImplicitTheory -> YCs -> TcM (FcTmSubst,HsTySubst)
+   entailYct untch theory yct = do
+        x <- runSolverFirstM (go yct)
+        return  x
+     where
+       go (cs :> c) = do
+         (ycs,subst1,ty_subst1) <- rightEntailsBacktracQ untch theory c
+         case ycs of
+           SN -> return (subst1,ty_subst1)
+           otherwise -> do
+            (subst2,ty_subst2) <- go  ycs
+            return (subst2 <> subst1,ty_subst2 <> ty_subst1)
 
-entailYct :: [RnTyVar] ->  ImplicitTheory -> YCs -> TcM (FcTmSubst,HsTySubst)
-entailYct untch theory yct = do
-     x <- runSolverFirstM (go yct)
-     return  x
-  where
-    go (cs :> c) = do
-      (ycs,subst1,ty_subst1) <- rightEntailsBacktracQ untch theory c
-      case ycs of
-        SN -> return (subst1,ty_subst1)
-        otherwise -> do
-         (subst2,ty_subst2) <- go  ycs
-         return (subst2 <> subst1,ty_subst2 <> ty_subst1)
+   rightEntailsBacktracQ :: [RnTyVar] -> ImplicitTheory -> YCt
+                         -> SolveM (YCs,FcTmSubst,HsTySubst)
+   rightEntailsBacktracQ untch it yct = liftSolveM (snocListChooseM (it:>CV_Nil) left_entail) >>= SolveM . selectListT
+     where
+       left_entail conv_axiom = leftEntailsIConv untch conv_axiom yct
 
-rightEntailsBacktracQ :: [RnTyVar] -> ImplicitTheory -> YCt
-                      -> SolveM (YCs,FcTmSubst,HsTySubst)
-rightEntailsBacktracQ untch it yct = liftSolveM (snocListChooseM (it:>CV_Nil) left_entail) >>= SolveM . selectListT
-  where
-    left_entail conv_axiom = leftEntailsIConv untch conv_axiom yct
+   leftEntailsIConv :: [RnTyVar] -> ConvAxiom -> YCt
+               -> TcM (Maybe (YCs, FcTmSubst,HsTySubst))
+   leftEntailsIConv untch CV_Nil (YCt j (MCT ty1 ty2))
+     | Right ty_subst <- unify [] [ty1 :~: ty2] = do
+                 x <- freshFcTmVar
+                 t0 <-  elabMonoTy (substInMonoTy ty_subst ty1)
+                 let id = FcTmAbs x t0 (FcTmVar x)
+                 return $ Just (SN, j |-> id,ty_subst)
+     | otherwise = return Nothing              
+   leftEntailsIConv untch (MCA (MCT a b) exp) (YCt j (MCT ty1 ty2))
+     | Right ty_subst <- unify [] [ty1 :~: a]  = do
+       x <- trace "MCA      " freshFcTmVar
+       b' <- elabMonoTy b
+       ty2' <- elabMonoTy ty2
+       let yct = substInYCt ty_subst (YCt x (MCT b ty2))
+       return $ Just (singletonSnocList yct , j |-> FcTmApp (FcTmVar x) exp,ty_subst)
+     | otherwise  = return Nothing
+   leftEntailsIConv untch ca@(PCA (PCT vars pairs (MCT a b)) exp) (YCt j (MCT ty1 ty2))
+     | Right ty_subst <- unify [] [ty1 :~: a]  = do
+       (ycs,term) <- prepare (trace ("Preparing: "++show ca) ca)
+       (tm_subst,ty_subst2) <- auxSolveY untch (trace ("YCS ::"++show ycs) ycs)
+       x <- trace "NEXT" freshFcTmVar
+       let nb = (substInMonoTy (ty_subst2 <> ty_subst) b)
+       b' <- elabMonoTy nb
+       ty2' <- elabMonoTy ty2
+       let yct = substInYCt ty_subst (YCt x (MCT nb ty2))
+       let c_exp = substFcTmInTm tm_subst term
+       return $ trace "XXXXXXX" (Just (singletonSnocList yct , j |-> FcTmApp (FcTmVar x) c_exp, ty_subst2 <> ty_subst))
+       `catchError` (\s-> return (trace "failed pairs!         "Nothing))
+     | otherwise  = return Nothing
+ 
+   prepare :: ConvAxiom -> TcM (YCs,FcTerm)
+   prepare = aux_p SN
+     where
+       aux_p ycs (PCA (PCT v (x@(var,mct):xs) m) exp) =
+         let j = rnTmVarToFcTmVar var in     
+         --let nexp = FcTmApp exp (FcTmVar j)
+         let yct  = YCt j mct in
+         aux_p (ycs:>yct) (PCA (PCT v xs m) exp)
+       aux_p ycs (PCA (PCT _ [] m) exp) = return (ycs,exp)
 
-leftEntailsIConv :: [RnTyVar] -> ConvAxiom -> YCt
-            -> TcM (Maybe (YCs, FcTmSubst,HsTySubst))
-leftEntailsIConv untch CV_Nil (YCt j (MCT ty1 ty2))
-  | Right ty_subst <- unify [] [ty1 :~: ty2] = do
-              x <- freshFcTmVar
-              t0 <-  elabMonoTy (substInMonoTy ty_subst ty1)
-              let id = FcTmAbs x t0 (FcTmVar x)
-              return $ Just (SN, j |-> id,ty_subst)
-  | otherwise = return Nothing              
-leftEntailsIConv untch (MCA (MCT a b) exp) (YCt j (MCT ty1 ty2))
-  | Right ty_subst <- unify [] [ty1 :~: a]  = do
-    x <- freshFcTmVar
-    b' <- elabMonoTy b
-    ty2' <- elabMonoTy ty2
-    let yct = substInYCt ty_subst (YCt x (MCT b ty2))
-    return $ Just (singletonSnocList yct , j |-> FcTmApp (FcTmVar x) exp,ty_subst)
-  | otherwise  = return Nothing
-leftEntailsIConv untch (PCA (PCT _ conds (MCT a b)) exp) (YCt j (MCT ty1 ty2))
-  | Right ty_subst <- unify [] [ty1 :~: a]  = do
---    (inst_exp,ty_subst2) <- solveConds (substInYCs conds)
-    x <- freshFcTmVar
-    b' <- elabMonoTy b
-    ty2' <- elabMonoTy ty2
-    let yct = substInYCt ty_subst (YCt x (MCT b ty2))
-    return $ Just (singletonSnocList yct , j |-> FcTmApp (FcTmVar x) exp,ty_subst)
-  | otherwise  = return Nothing
-  -- solve constraints (in order to ty1) and get subst, apply it and then check
-  
-  
 -- | the f function in the specification. "prepares" the YCs to be solved directly later.
 f :: YCs -> ImplicitTheory -> TcM(YCs)
 f ycs it = step2 (step1 ycs ycs) it
@@ -672,8 +685,8 @@ reachable init it = aux [] [init] it
               if (substInMonoTy ty_subst b) `elem` old then Nothing else
                 Just (substInMonoTy ty_subst b)
           | Left _         <- unify [] [at :~: a] = Nothing
-         onestep old at (PCA pct@(PCT vars conds mono@(MCT a b)) exp) 
-           | Right ty_subst <-  unify [] [at :~: a] = if ((substInMonoTy ty_subst b) `elem` old) && (sat conds)
+         onestep old at (PCA pct@(PCT vars pairs mono@(MCT a b)) exp) 
+           | Right ty_subst <-  unify [] [at :~: a] = if ((substInMonoTy ty_subst b) `elem` old) && (sat (map snd pairs))
              then Nothing
              else Just (substInMonoTy ty_subst b)
            | otherwise = Nothing   
@@ -689,6 +702,7 @@ step1 (rest:>conv@(YCt _ (MCT a (TyVar b)))) all
  where one_incomming b SN 1 = True
        one_incomming b SN _ = False
        one_incomming b (xs:>x@(YCt _ (MCT _ c))) i = if c == b then (one_incomming b xs (i+1)) else one_incomming b xs i
+step1 (rest:>conv) all = (step1 rest all):>conv
 step1 SN _ = SN
 
 -- | look for a common type where they can meet
@@ -1107,9 +1121,10 @@ elabIConvDecl :: FullTheory -> ImplicitTheory -> RnIConvDecl -> TcM (FcValBind, 
      return (fc_val_bind,ext_it)
 -}
 
-elabIConvDecl ft implt (IConvD name pct@(PCT vars conds monoty@(MCT a b)) exp) = do
+elabIConvDecl ft implt (IConvD name pct@(PCT vars pairs monoty@(MCT a b)) exp) = do
      --make sure tyVars are fine
-     (rn_poly_ty, elab_exp) <- elabTermSimpl (ftDropSuper ft) implt exp -- TODO: add the conditions to a 'local' implicit theory used to elab the expression
+     let (rnPHs,types) = aux pairs
+     (rn_poly_ty, elab_exp) <- extendCtxTmsM rnPHs types (elabTermSimpl (ftDropSuper ft) implt exp) -- TODO: add the conditions to a 'local' implicit theory used to elab the expression
      -- Check the implicit does what it claims to do.
      do
        {-[mono_ty] <- polyTysToMonoTysM [(instMethodTy2 a rn_poly_ty)]
@@ -1119,13 +1134,16 @@ elabIConvDecl ft implt (IConvD name pct@(PCT vars conds monoty@(MCT a b)) exp) =
      fc_a <- elabMonoTy a
      fc_b <- elabMonoTy b
      let ugly = (FcTmTyApp elab_exp fc_a)
-     let ext_it = case conds of
+     let ext_it = case pairs of
            [] -> implt `itExtend` (MCA monoty ugly)
            otherwise -> implt `itExtend` (PCA pct ugly)
      let fcname = rnTmVarToFcTmVar name
      let fc_type = mkFcArrowTy fc_a fc_b
      let fc_val_bind = FcValBind fcname fc_type ugly
      return (fc_val_bind,ext_it)
+     where
+       aux :: [(RnTmVar,RnMonoConvTy)] -> ([RnTmVar],[RnPolyTy])
+       aux pairs = (map fst pairs, map (\(MCT a b) -> monoTyToPolyTy (mkRnArrowTy [a] b)) (map snd pairs))
 
 
 -- * Type Inference With Constraint Simplification

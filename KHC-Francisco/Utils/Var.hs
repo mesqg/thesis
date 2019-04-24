@@ -70,6 +70,7 @@ mkName = MkName
 
 -- | Source term variables
 newtype HsTmVar a = HsTmVar { hstmvar_name :: a }
+ deriving Show
 
 -- | Source type variables
 data HsTyVar :: * -> * where

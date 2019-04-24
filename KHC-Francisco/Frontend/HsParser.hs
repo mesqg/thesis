@@ -192,7 +192,7 @@ pDataCon = HsDC <$> upperIdent <?> "a data constructor"
 
 -- | Parse ConvTy
 pMonoConvTy :: PsM PsMonoConvTy
-pMonoConvTy = MCT <$>  pPrimTy <*>  pPrimTy
+pMonoConvTy = MCT <$>  pPrimTy <* symbol "~>" <*>  pPrimTy
 
 {-- | Parse a qualified conversion type -- Type Well-formedness says 1 constraint
 pQualConvTy :: PsM PsQualConvTy
@@ -202,7 +202,7 @@ pQualConvTy =
 pPolyConvTy :: PsM PsPolyConvTy
 pPolyConvTy =
   --PCT <$ symbol "forall" <*> sepBy1 (parens pTyVarWithKind) (symbol ",") <* dot <*> sepBy1 pMonoConvTy (symbol ",") <* (symbol "=>") <*> pMonoConvTy
-  PCT <$> many (parens pTyVarWithKind) <* (optional dot) <*> many (parens pMonoConvTy)  <* (optional (symbol "=>")) <*> pMonoConvTy
+  PCT <$> many (parens pTyVarWithKind) <* (optional dot) <*> many (parens (pTmVar <&> (symbol ":" *> pMonoConvTy)))  <* (optional (symbol "=>")) <*> pMonoConvTy
   
 
 
