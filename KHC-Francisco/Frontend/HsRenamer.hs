@@ -250,6 +250,10 @@ rnTerm (TmLet x tm1 tm2)  = do
   rntm1 <- extendCtxTmM x rnx (rnTerm tm1)
   rntm2 <- extendCtxTmM x rnx (rnTerm tm2)
   return (TmLet rnx rntm1 rntm2)
+rnTerm (TmLocImp tm1 tm2)  = do
+  rntm1 <- rnIConv tm1
+  rntm2 <- rnTerm tm2
+  return (TmLocImp rntm1 rntm2)  
 rnTerm (TmCase scr alts)  = TmCase <$> rnTerm scr <*> mapM rnAlt alts
 
 -- | Rename a case alternative
@@ -397,6 +401,15 @@ rnIConvDecl (IConvD iconv ty@(PCT _ psPairs _) exp) = do
   rn_exp      <- extendCtxTmsM psVars rnVars (rnTerm exp)
 --  rn_exp      <- rnTerm exp                        -- rename the conversion implementation
   return (IConvD rn_cnv rn_ty rn_exp)
+
+rnIConv :: PsIConv -> RnM RnIConv
+rnIConv (ICC name pct@(PCT _ psPairs _) exp) = do
+  rn_cnv <- rnTmVar name
+  rn_ty@(PCT _ rnPairs _)        <- rnPolyConvTy pct
+  let (psVars,rnVars) = (map fst psPairs, map fst rnPairs)
+  rn_exp      <- extendCtxTmsM psVars rnVars (rnTerm exp)
+  return (ICC rn_cnv rn_ty rn_exp)
+  
 
 -- | Rename a program
 rnProgram :: PsProgram -> RnM (RnProgram, RnCtx)

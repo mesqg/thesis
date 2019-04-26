@@ -131,10 +131,13 @@ data Term a = TmVar (HsTmVar a)                   -- ^ Term variable
             | TmCon (HsDataCon a)                 -- ^ Data constructor
             | TmAbs (HsTmVar a) (Term a)          -- ^ Lambda x . Term
             | TmApp (Term a) (Term a)             -- ^ Term application
-            -- | -- term to implicit!
+            | TmLocImp (IConv a) (Term a)     -- ^ Loc impl i in term
             | TmLet (HsTmVar a) (Term a) (Term a) -- ^ Letrec var = term in term
             | TmCase (Term a) [HsAlt a]           -- ^ case e of { ... }
 
+data (IConv a) = ICC (HsTmVar a) (PolyConvTy a) (Term a) --TODO USE THIS for ICONVD
+type PsIConv = IConv Sym
+type RnIConv = IConv Name
 -- | Parsed/renamed term
 type PsTerm = Term Sym
 type RnTerm = Term Name
@@ -201,9 +204,13 @@ instance Show RnMonoConvTy where
   show (MCT a b) = show a++" ~> "++show b
 
 instance Show RnPolyConvTy where
-  show (PCT _ a b) = show a++" => "++show b
+  show (PCT _ a b) = show a++" => "++show b 
   
+instance Eq RnMonoConvTy where
+  (==) (MCT a b) (MCT a' b') = a == a' && b == b'  
 
+instance Eq RnPolyConvTy where
+  (==) (PCT _ a b) (PCT _ a' b') = a == a' && b == b'
 -- | Parsed/renamed MonoConvType
 type PsMonoConvTy = MonoConvTy Sym
 type RnMonoConvTy = MonoConvTy Name
@@ -215,6 +222,7 @@ type RnQualConvTy = QualConvTy Name
 -- | Parsed/renamed PolyConvType
 type PsPolyConvTy = PolyConvTy Sym
 type RnPolyConvTy = PolyConvTy Name
+
 
 -- * Types and Constraints
 -- -----------------------------------------------------
@@ -491,10 +499,10 @@ type YCs = SnocList YCt
 instance Show YCs where
   show SN = "SN"
   show (xs:>x) = show x++" :> "++show xs
-data YCt = YCt FcTmVar RnMonoConvTy
+data YCt = YCt FcTmVar RnMonoConvTy ImplicitTheory
 
 instance Show YCt where
-  show (YCt _ b) = "YCt: "++show b
+  show (YCt _ b _) = "YCt: "++show b
 
 data FullTheory = FT { theory_super :: ProgramTheory
                      , theory_inst  :: ProgramTheory
@@ -502,7 +510,12 @@ data FullTheory = FT { theory_super :: ProgramTheory
                      }
 data ConvAxiom = PCA RnPolyConvTy FcTerm | MCA RnMonoConvTy FcTerm | CV_Nil
 --data ConvAxiom = PCA  [(FcTmVar,RnMonoConvTy)] (RnMonoConvTy) FcTerm | MCA RnMonoConvTy FcTerm | CV_Nil
-
+instance Eq ConvAxiom where
+  (==) (PCA  a _) (PCA  b _) = a == b
+  (==) (MCA  a _) (MCA  b _) = a == b
+  (==) CV_Nil CV_Nil = True
+  (==) _ _ = False
+  
 instance Show ConvAxiom where
   show (PCA  a _) = show a
   show (MCA a _) = show a
@@ -511,10 +524,13 @@ instance Show ConvAxiom where
 type ImplicitTheory = SnocList ConvAxiom {-it :: SnocList ConvAxiom
                         -- , local :: SnocList MonoConvTy
                         -}
+instance Show ImplicitTheory where
+  show SN = "SN"
+  show (xs:>x) = show xs++":>"++(show x)
 
 -- | Construct a implicit conversion constraint from a ?, and two ?_types: the argument and result type of the conversion
-constrYCs :: FcTmVar -> RnMonoTy -> RnMonoTy -> YCs
-constrYCs j t1 t2 = singletonSnocList (YCt j (MCT t1 t2))
+constrYCs :: FcTmVar -> RnMonoTy -> RnMonoTy -> ImplicitTheory -> YCs
+constrYCs j t1 t2 it = singletonSnocList (YCt j (MCT t1 t2) it)
 
 
 -- | Extend the implicit theory
@@ -692,14 +708,18 @@ instance (Symable a, PrettyPrint a) => PrettyPrint (Term a) where
     | otherwise          = pprPar tm1 <+> pprPar tm2
   ppr (TmLet v tm1 tm2)  = colorDoc yellow (text "let") <+> ppr v <+> equals <+> ppr tm1
                         $$ colorDoc yellow (text "in")  <+> ppr tm2
+  ppr (TmLocImp i tm)    = colorDoc yellow (text "locimp") <+> ppr i
+                        $$ colorDoc yellow (text "in")  <+> ppr tm
+                        
   ppr (TmCase scr alts)  = hang (text "case" <+> ppr scr <+> text "of") 2 (vcat $ map ppr alts)
 
-  needsParens (TmAbs  {}) = True
-  needsParens (TmApp  {}) = True
-  needsParens (TmLet  {}) = True
-  needsParens (TmCase {}) = True
-  needsParens (TmVar  {}) = False
-  needsParens (TmCon  {}) = False
+  needsParens (TmAbs  {})   = True
+  needsParens (TmApp  {})   = True
+  needsParens (TmLet  {})   = True
+  needsParens (TmCase {})   = True
+  needsParens (TmLocImp {}) = True
+  needsParens (TmVar  {})   = False
+  needsParens (TmCon  {})   = False
 
 -- | Pretty print type patterns
 instance (Symable a, PrettyPrint a) => PrettyPrint (HsTyPat a) where
@@ -786,6 +806,14 @@ instance (Symable a, PrettyPrint a) => PrettyPrint (IConvDecl a) where
            (ppr (symOf iname)) -}
   needsParens _ = False
 
+-- | Pretty print Implicit Conversion declarations
+instance (Symable a, PrettyPrint a) => PrettyPrint (IConv a) where
+  ppr (ICC iname x iconv)
+    = text "bla" {-hang (colorDoc green (text "implicit") <+> ppr a <+> ppr b <+> ppr iconv )
+           2
+           (ppr (symOf iname)) -}
+  needsParens _ = False
+  
   -- | Pretty print class declarations
 instance (Symable a, PrettyPrint a) => PrettyPrint (ClsDecl a) where
   ppr (ClsD cs cName cVar mName mTy)
@@ -827,7 +855,7 @@ instance PrettyPrint EqCt where
 
 -- | Pretty print Y constraints
 instance PrettyPrint YCt where
-  ppr (YCt j mct) = ppr j <+> colon <+> ppr mct
+  ppr (YCt j mct _) = ppr j <+> colon <+> ppr mct
   needsParens _ = True
 
 -- | Pretty print MonoConvTy

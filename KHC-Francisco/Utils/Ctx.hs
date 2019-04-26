@@ -3,8 +3,8 @@
 module Utils.Ctx
 ( Ctx -- Keep opaque
 , lookupTyVarCtx, lookupTmVarCtx, extendCtxTy, extendCtxTm
-, lookupTyVarM, lookupTmVarM
-, extendCtxTyM, extendCtxTysM
+, lookupTyVarM, lookupTyVarN, lookupTmVarM, lookupTmVarN
+, extendCtxTyM, extendCtxTysM,extendCtxTyN,extendCtxTysN
 , extendCtxTmM, extendCtxTmsM
 , extendCtxM, setCtxM
 ) where
@@ -71,9 +71,21 @@ lookupTyVarM psb = ask >>= \ctx -> case lookupTyVarCtx ctx psb of
   Just rnb -> return rnb
   Nothing  -> throwErrorM (text "Unbound type variable" <+> colon <+> ppr psb)
 
+-- | NEW! Lookup a type variable in the context w/ our reader
+lookupTyVarN :: (Eq a, PrettyPrint a, MonadReader ((Ctx x x' a b),c) m, MonadError String m) => a -> m b
+lookupTyVarN psb = ask >>= \(ctx,i) -> case lookupTyVarCtx ctx psb of
+  Just rnb -> return rnb
+  Nothing  -> throwErrorM (text "Unbound type variable" <+> colon <+> ppr psb)
+
 -- | Lookup a term variable in the context
 lookupTmVarM :: (Eq a1, PrettyPrint a1, MonadReader (Ctx a1 b a a') m, MonadError String m) => a1 -> m b
 lookupTmVarM psy = ask >>= \ctx -> case lookupTmVarCtx ctx psy of
+  Just rny -> return rny
+  Nothing  -> throwErrorM (text "Unbound term variable" <+> colon <+> ppr psy)
+
+-- | New! Lookup a term variable in the context w/ our reader
+lookupTmVarN :: (Eq a1, PrettyPrint a1, MonadReader ((Ctx a1 b a a'),c) m, MonadError String m) => a1 -> m b
+lookupTmVarN psy = ask >>= \(ctx,_) -> case lookupTmVarCtx ctx psy of
   Just rny -> return rny
   Nothing  -> throwErrorM (text "Unbound term variable" <+> colon <+> ppr psy)
 
@@ -81,11 +93,21 @@ lookupTmVarM psy = ask >>= \ctx -> case lookupTmVarCtx ctx psy of
 extendCtxTyM :: MonadReader (Ctx x x' a a') m => a -> a' -> m b -> m b
 extendCtxTyM psa rna = local (\ctx -> extendCtxTy ctx psa rna)
 
+-- | NEW! Add a type variable to the context w/ our reader
+extendCtxTyN :: MonadReader ((Ctx x x' a a'),c) m => a -> a' -> m b -> m b
+extendCtxTyN psa rna = local (\(ctx,i) -> (extendCtxTy ctx psa rna,i))
+
 -- | Add many type variables to the context
 extendCtxTysM :: (MonadReader (Ctx x x' a a') m, MonadError String m) => [a] -> [a'] -> m b -> m b
 extendCtxTysM []     []     m = m
 extendCtxTysM (a:as) (b:bs) m = extendCtxTyM a b (extendCtxTysM as bs m)
 extendCtxTysM _      _      _ = throwErrorM (text "extendCtxTysM" <+> colon <+> text "length mismatch")
+
+-- | New! Add many type variables to the context w/ our reader
+extendCtxTysN :: (MonadReader ((Ctx x x' a a'),c) m, MonadError String m) => [a] -> [a'] -> m b -> m b
+extendCtxTysN []     []     m = m
+extendCtxTysN (a:as) (b:bs) m = extendCtxTyN a b (extendCtxTysN as bs m)
+extendCtxTysN _      _      _ = throwErrorM (text "extendCtxTysN"<+> colon <+> text "length mismatch")
 
 -- | Add a term variable to the context
 extendCtxTmM :: MonadReader (Ctx x x' a a') m => x -> x' -> m b -> m b

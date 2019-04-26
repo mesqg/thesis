@@ -6,3 +6,6 @@ KHC-Francisco/dist/*
 *.hi
 *.cache
 *.lock
+*.aux
+
+*.log

@@ -234,7 +234,7 @@ substInSimpleProgramTheory subst = fmap (\(d :| ct) -> (d :| substInClsCt subst 
 
 -- | Apply a type substitution to Implicit Conv Constraints
 substInYCt :: HsTySubst -> YCt -> YCt
-substInYCt subst (YCt j (MCT a b))= YCt j (MCT (substInMonoTy subst a) (substInMonoTy subst b))
+substInYCt subst (YCt j (MCT a b) it)= YCt j (MCT (substInMonoTy subst a) (substInMonoTy subst b)) it
 
 substInYCs :: HsTySubst -> YCs -> YCs
 substInYCs subst = fmap (substInYCt subst)

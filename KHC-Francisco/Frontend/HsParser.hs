@@ -6,6 +6,7 @@ import Frontend.HsTypes
 import Utils.Kind (Kind(..))
 import Utils.Var (Sym, mkSym, PsTyVar, mkPsTyVar, PsTmVar, mkPsTmVar)
 import Utils.Annotated (Ann((:|)))
+import Debug.Trace
 
 -- | Utilities
 import Control.Applicative (Alternative, liftA2, (<**>))
@@ -57,7 +58,7 @@ lexeme x = ask >>= \(SC sc') -> L.lexeme sc' x
 -- | List of reserved names
 reservedNames :: [String]
 reservedNames =
-  ["let", "in", "case", "of", "data", "class", "instance", "where", "forall"]
+  ["let", "in", "case", "of", "data", "class", "instance", "where", "forall","locimp"]
 
 -- | Parse an identifier given a parser for the first character
 identifier :: PsM Char -> PsM Sym
@@ -175,10 +176,6 @@ pTmVar = mkPsTmVar <$> lowerIdent <?> "a term variable"
 pClass :: PsM PsClass
 pClass = Class <$> upperIdent <?> "a class name"
 
--- | Parse a implicit conversion name
-{-pIConv :: PsM PsIConv
-pIConv = IConv <$> lowerIdent <?> "an implicit conversion name" -}
-
 -- | Parse a type constructor
 pTyCon :: PsM PsTyCon
 pTyCon = HsTC <$> upperIdent <?> "a type constructor"
@@ -282,12 +279,25 @@ pTerm  =  pAppTerm
           <*> (pTmVar <&> (symbol "=" *> pTerm))
           <*  symbol "in"
           <*> pTerm
+      <|> TmLocImp
+         <$  symbol "locimp"
+         <*> (parens pIConv)
+         <*  symbol "in"
+         <*> pTerm
       <|> TmCase
           <$  symbol "case"
           <*> pTerm
           <*  symbol "of"
           <*> some (indent pAlt)
 
+pIConv :: PsM PsIConv          
+pIConv = ICC
+  <$> pTmVar--pIConv
+  <*  symbol ":"
+  <*> pPolyConvTy
+  <*  symbol "="
+  <*> pTerm
+  
 -- | Parse a pattern
 pPat :: PsM PsPat
 pPat = HsPat <$> pDataCon <*> many pTmVar
