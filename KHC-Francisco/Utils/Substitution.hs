@@ -233,11 +233,11 @@ substInSimpleProgramTheory :: HsTySubst -> SimpleProgramTheory -> SimpleProgramT
 substInSimpleProgramTheory subst = fmap (\(d :| ct) -> (d :| substInClsCt subst ct))
 
 -- | Apply a type substitution to Implicit Conv Constraints
-substInYCt :: HsTySubst -> YCt -> YCt
-substInYCt subst (YCt j (MCT a b) it)= YCt j (MCT (substInMonoTy subst a) (substInMonoTy subst b)) it
+substInYCt :: FcTmSubst -> HsTySubst -> YCt -> YCt
+substInYCt tmsubst tysubst (YCt j (MCT a b) ex it)= YCt j (MCT (substInMonoTy tysubst a) (substInMonoTy tysubst b)) (substFcTmInTm tmsubst ex) it
 
-substInYCs :: HsTySubst -> YCs -> YCs
-substInYCs subst = fmap (substInYCt subst)
+substInYCs :: FcTmSubst -> HsTySubst -> YCs -> YCs
+substInYCs tmsubst tysubst = fmap (substInYCt tmsubst tysubst)
 
 -- | Apply a type substitution to a qualified type
 substInQualTy :: HsTySubst -> RnQualTy -> RnQualTy

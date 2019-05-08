@@ -202,19 +202,20 @@ rnPolyTy (PPoly a ty) = do
 rnPolyConvTy :: PsPolyConvTy -> RnM RnPolyConvTy
 rnPolyConvTy (PCT vars conds mono) =
   let f = \x -> do
-        c <- rnTyVar x
-        return (c :| kindOf c)
-  in
+        return (x :| kindOf x)
+  in 
     let f2 = \(a,b) -> do
           xa <- rnTmVar a
           xb <- rnMonoConvTy b
           return (xa,xb)
     in
     do
-  a <- (mapM f vars)
-  b <- (mapM f2 conds)
-  c <- (rnMonoConvTy mono)
-  return (PCT a b c)
+  tyvars <- mapM rnTyVar vars -- collect and rename all bound variables
+  extendKindedVarsCtxM tyvars (do
+                                   a <- mapM f tyvars -- rename the type
+                                   b <- (mapM f2 conds)
+                                   c <- (rnMonoConvTy mono)
+                                   return (PCT a b c))
 {-rnPolyConvTy (PCT a ty) = do
   rna  <- rnTyVar a
   rnty <- extendCtxTyM (labelOf a) rna (rnPolyConvTy ty)
@@ -385,22 +386,10 @@ rnDataDecl (DataD tc as dcs) = do
 
   -- | TODO! Rename an implicit declaration
 rnIConvDecl :: PsIConvDecl -> RnM RnIConvDecl
-rnIConvDecl (IConvD iconv ty@(PCT _ psPairs _) exp) = do
-    -- Rename the class name
-  rn_cnv <- rnTmVar iconv{-do
-    cnv_infos <- getCnvInfoRnM
-    case lookupInAssocList iconv cnv_infos of
-      Just {} -> throwErrorRnM (text "Conversion" <+> text "already defined")
-      Nothing -> IConv <$> rnSym (symOf iconv) -}
-
-    -- Store the conversion info in the global environment
-  --addCnvInfoRnM iconv (HsICInfo rn_cnv)
-  
-  rn_ty@(PCT _ rnPairs _)        <- rnPolyConvTy ty
-  let (psVars,rnVars) = (map fst psPairs, map fst rnPairs)
-  rn_exp      <- extendCtxTmsM psVars rnVars (rnTerm exp)
---  rn_exp      <- rnTerm exp                        -- rename the conversion implementation
-  return (IConvD rn_cnv rn_ty rn_exp)
+rnIConvDecl (IConvD i) = do
+    -- Rename iconvthe class name
+  ni <- rnIConv i
+  return (IConvD ni)
 
 rnIConv :: PsIConv -> RnM RnIConv
 rnIConv (ICC name pct@(PCT _ psPairs _) exp) = do

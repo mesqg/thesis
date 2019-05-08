@@ -135,12 +135,8 @@ pClsDecl  =  indent $ (\ctx cls a (m,ty) -> ClsD ctx cls a m ty)
 -- | Parse a implicit conversion declaration
 pIConvDecl :: PsM PsIConvDecl
 pIConvDecl  =  indent $ IConvD
-         <$  symbol "implicit"
-         <*> pTmVar--pIConv
-         <*  symbol ":"
-         <*> pPolyConvTy
-         <*  symbol "="
-         <*> pTerm
+          <$  symbol "implicit"
+          <*> pIConv
 
 -- | Parse an instance declaration
 pInstDecl :: PsM PsInsDecl
@@ -281,14 +277,16 @@ pTerm  =  pAppTerm
           <*> pTerm
       <|> TmLocImp
          <$  symbol "locimp"
-         <*> (parens pIConv)
+         <*> pIConv
          <*  symbol "in"
          <*> pTerm
       <|> TmCase
           <$  symbol "case"
           <*> pTerm
           <*  symbol "of"
-          <*> some (indent pAlt)
+          <*> (\x -> do
+                  p <- x
+                  return [p]) pAlt --some (indent pAlt)
 
 pIConv :: PsM PsIConv          
 pIConv = ICC

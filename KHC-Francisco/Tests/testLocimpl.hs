@@ -1,18 +1,19 @@
 -- * Simple example with superclasses
 -- ----------------------------------------------------------------------------
+data TyA = A
+data TyB = B1 | B2
+data TyC = C1 | C2
 
-data Bool   = B1 | B2
-data Chuck  = C1 | C2
-data Fail = F
+implicit i : TyB ~> TyC = \x. C2
 
-implicit i : Bool ~> Chuck = \x. C2
+class Cls a :: * where
+  f :: TyC -> TyC -> TyC
 
-class Eq a :: * where
-  equals :: Chuck -> Chuck -> Chuck
-
-instance Eq Chuck where
-  equals = \x. \y. C1   
+instance Cls TyC where
+  f = \x. \y. C1   
 
 -- | Program expression
+f (locimp i:TyA ~> TyB = \x.B1 in (f A A)) (locimp i:TyA ~> TyB = \x.B2 in (f A A))
 
-equals (locimp (i:Fail ~> Bool = \x.B1) in (equals F F)) (locimp (i:Fail ~> Bool = \x.B2) in (equals F F))
+
+

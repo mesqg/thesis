@@ -74,7 +74,7 @@ data HsDataConInfo
                 , hs_dc_fc_data_con :: FcDataCon }  -- ^ Elaborated Data Constructor
 
 {-- * Impl Conversion Names TODO! KILL THIS
-newtype IConv a = IConv { unIConv :: a }
+newtype IConv = IConv { unIConv :: a }
   deriving (Eq, Ord)
 
 instance Uniquable a => Uniquable (IConv a) where
@@ -191,7 +191,7 @@ hsTyPatToMonoTy (HsTyVarPat (a :| _kind)) = TyVar a
 -- I don't think we ever need to use a QualConvTy?
 -- So I personally would have gone for
 data MonoConvTy a = MCT (MonoTy a) (MonoTy a)
-data PolyConvTy a = PCT [HsTyVarWithKind a] [(HsTmVar a,MonoConvTy a)] (MonoConvTy a)
+data PolyConvTy a = PCT [(HsTyVarWithKind a)] [(HsTmVar a,MonoConvTy a)] (MonoConvTy a)
 -- Just personal preference :)
 -- F: I agree: I was having difficulties parsing
 --data PolyConvTy a  = PCTC (HsTyVarWithKind a) (PolyConvTy a)
@@ -424,9 +424,7 @@ data Program a = PgmExp  (Term a)                 -- ^ Expression
                | PgmImpl (IConvDecl a) (Program a) -- ^ Implicit declaration
 
 -- | Implicit Declaration
-data IConvDecl a = IConvD { implname    :: HsTmVar a    -- ^ Name of the conversion
-                          , impltypearg :: PolyConvTy a -- ^ "Type of the conv"
-                          , implconv    :: Term a }     -- ^ Conversion expression   
+data IConvDecl a = IConvD (IConv a)
 
 -- | Class declaration
 data ClsDecl a = ClsD { csuper :: ClsCs a           -- ^ Superclass constraints
@@ -499,10 +497,10 @@ type YCs = SnocList YCt
 instance Show YCs where
   show SN = "SN"
   show (xs:>x) = show x++" :> "++show xs
-data YCt = YCt FcTmVar RnMonoConvTy ImplicitTheory
+data YCt = YCt FcTmVar RnMonoConvTy FcTerm ImplicitTheory
 
 instance Show YCt where
-  show (YCt _ b _) = "YCt: "++show b
+  show (YCt _ b _ _) = "YCt: "++show b
 
 data FullTheory = FT { theory_super :: ProgramTheory
                      , theory_inst  :: ProgramTheory
@@ -529,8 +527,8 @@ instance Show ImplicitTheory where
   show (xs:>x) = show xs++":>"++(show x)
 
 -- | Construct a implicit conversion constraint from a ?, and two ?_types: the argument and result type of the conversion
-constrYCs :: FcTmVar -> RnMonoTy -> RnMonoTy -> ImplicitTheory -> YCs
-constrYCs j t1 t2 it = singletonSnocList (YCt j (MCT t1 t2) it)
+constrYCs :: FcTmVar -> RnMonoTy -> RnMonoTy -> FcTerm -> ImplicitTheory -> YCs
+constrYCs j t1 t2 ex it = singletonSnocList (YCt j (MCT t1 t2) ex it)
 
 
 -- | Extend the implicit theory
@@ -800,10 +798,7 @@ instance (Symable a, PrettyPrint a) => PrettyPrint (Program a) where
 
 -- | Pretty print Implicit Conversion declarations
 instance (Symable a, PrettyPrint a) => PrettyPrint (IConvDecl a) where
-  ppr (IConvD iname x iconv)
-    = text "bla" {-hang (colorDoc green (text "implicit") <+> ppr a <+> ppr b <+> ppr iconv )
-           2
-           (ppr (symOf iname)) -}
+  ppr (IConvD i) = ppr i
   needsParens _ = False
 
 -- | Pretty print Implicit Conversion declarations
@@ -855,7 +850,7 @@ instance PrettyPrint EqCt where
 
 -- | Pretty print Y constraints
 instance PrettyPrint YCt where
-  ppr (YCt j mct _) = ppr j <+> colon <+> ppr mct
+  ppr (YCt j mct exp _) = ppr j <+> colon <+> ppr mct <+> colon <+> ppr exp
   needsParens _ = True
 
 -- | Pretty print MonoConvTy
