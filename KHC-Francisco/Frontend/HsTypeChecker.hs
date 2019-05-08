@@ -620,7 +620,7 @@ occursCheck a (TyVar b)       = a /= b
 solveY :: YCs -> TcM (FcTmSubst,HsTySubst)
 solveY ycs = do
   tysubst1 <- f ycs
-  (fctmsubst,tysubst2) <- auxSolveY [] (trace (render$ppr$ substInYCs mempty tysubst1 ycs) (substInYCs mempty tysubst1 ycs))
+  (fctmsubst,tysubst2) <- auxSolveY [] (substInYCs mempty tysubst1 ycs)
   return (fctmsubst,tysubst1<>tysubst2)
   `catchError` (\s-> throwError (s++" :solveY"))
   
@@ -631,7 +631,7 @@ solveY ycs = do
    entailYcs :: [RnTyVar] -> YCs -> TcM (FcTmSubst,HsTySubst)
    entailYcs _ SN = return mempty
    entailYcs untch (xs :> x) = do
-     (tmsubst,ty_subst) <- entailYct untch (trace (render$ppr$x) (singletonSnocList x))
+     (tmsubst,ty_subst) <- entailYct untch (singletonSnocList x)
      (rest,ty_subst2) <- entailYcs untch (substInYCs tmsubst ty_subst xs)
      return (rest <> tmsubst, ty_subst2 <> ty_subst)
     
@@ -679,7 +679,7 @@ solveY ycs = do
        b' <- elabMonoTy nb
        ty2' <- elabMonoTy ty2
        let yct = substInYCt tm_subst ty_subst (YCt j (MCT nb ty2) (FcTmApp conv_exp tm) it)
-       return $ Just (singletonSnocList (trace ("PCA!"++(render$ppr yct)) yct) , mempty , ty_subst2 <> ty_subst)
+       return $ Just (singletonSnocList  yct , mempty , ty_subst2 <> ty_subst)
        `catchError` (\s-> return Nothing)
      | otherwise  = return Nothing
      where
@@ -1102,7 +1102,7 @@ elabTermWithSig untch theory tm poly_ty = do
     -- End NEW
 
   ev_subst <- do
-    let local_theory = ftToProgramTheory theory <> progTheoryFromSimple (trace ("PPPPP"++(render$ppr given_ccs)) given_ccs)
+    let local_theory = ftToProgramTheory theory <> progTheoryFromSimple given_ccs
     let wanted       = substInSimpleProgramTheory (ty_subst2 <> ty_subst) wanted_ccs
     -- rightEntailsRec untouchables local_theory wanted
     entailTcM untouchables local_theory wanted
@@ -1185,7 +1185,7 @@ elabTermSimpl theory tm = do
   ((mono_ty, fc_tm), wanted_eqs, wanted_ics, wanted_ccs) <- runGenM $ elabTerm tm
 
   -- Simplify as much as you can
-  ty_subst <- unify mempty $  (trace ("EQ CONST: "++(render$ppr wanted_eqs)) wanted_eqs) -- Solve the needed equalities first
+  ty_subst <- unify mempty $ wanted_eqs -- Solve the needed equalities first
 
   let refined_wanted_ics = substInYCs mempty ty_subst wanted_ics                      -- refine the wanted implicit conversion constraints
   let refined_mono_ty    = substInMonoTy              ty_subst mono_ty          -- refine the monotype
@@ -1200,7 +1200,7 @@ elabTermSimpl theory tm = do
   refined_fc_tm <- elabHsTySubst  (ty_subst<>ty_subst2)  >>= return . flip substFcTyInTm fc_tm_after_Y -- refine the term
   let untouchables = nub (ftyvsOf refined_mono_ty)
 
-  (residual_cs, ev_subst) <- entailDetTcM untouchables theory (trace ("REFINED: "++(render$ppr refined_wanted_ccs)) refined_wanted_ccs)
+  (residual_cs, ev_subst) <- entailDetTcM untouchables theory refined_wanted_ccs
   -- (residual_cs, ev_subst) <- rightEntailsRec untouchables theory refined_wanted_ccs
   -- GEORGE: Define and use constraint simplification here
 
