@@ -673,12 +673,12 @@ solveY ycs = do
      | otherwise  = return Nothing
    leftEntailsIConv untch ca@(PCA (PCT vars pairs (MCT a b)) exp) (YCt j (MCT ty1 ty2) tm it)
      | Right ty_subst <- unify [] [ty1 :~: a]  = do
-       (ycs,conv_exp) <- prepare ca (xcludeSelf ca it)
+       ycs <- prepare ca (xcludeSelf ca it)
        (tm_subst,ty_subst2) <- auxSolveY untch ycs
        let nb = (substInMonoTy (ty_subst2 <> ty_subst) b)
        b' <- elabMonoTy nb
        ty2' <- elabMonoTy ty2
-       let yct = substInYCt tm_subst ty_subst (YCt j (MCT nb ty2) (FcTmApp conv_exp tm) it)
+       let yct = substInYCt tm_subst ty_subst (YCt j (MCT nb ty2) (FcTmApp exp tm) it)
        return $ Just (singletonSnocList  yct , mempty , ty_subst2 <> ty_subst)
        `catchError` (\s-> return Nothing)
      | otherwise  = return Nothing
@@ -689,14 +689,14 @@ solveY ycs = do
            | otherwise = (xcludeSelf ca x):>xs
 
 -- | prepares the conditions of conditional ITC to check entailalibity
-prepare :: ConvAxiom -> ImplicitTheory -> TcM (YCs,FcTerm)
+prepare :: ConvAxiom -> ImplicitTheory -> TcM (YCs)
 prepare = aux_p SN
      where
        aux_p ycs (PCA (PCT v (x@(var,mct):xs) m) exp) it =
          let j = rnTmVarToFcTmVar var in     
          let yct  = YCt j mct FcDummyTerm it in --TODO? not pretty but not the worst?
          aux_p (ycs:>yct) (PCA (PCT v xs m) exp) it
-       aux_p ycs (PCA (PCT _ [] m) exp) _ = return (ycs,exp)
+       aux_p ycs (PCA (PCT _ [] m) exp) _ = return ycs
 
 -- | the f function in the specification. "prepares" the YCs to be solved directly later.
 f :: YCs -> TcM(HsTySubst)
@@ -724,8 +724,10 @@ step2 ycs = aux2 ycs
   aux2 :: YCs -> TcM(HsTySubst)
   aux2 SN = return mempty
   aux2 (rest:>conv@(YCt _ (MCT a b) _ it))  = case b of
-      (TyVar x) -> let source = incomming b ycs in
-        let meet = (foldr intersect (reachable (head source) it) (map (\x-> reachable x it) (tail source))) in
+      (TyVar x) -> let source = incomming b ycs in do
+        rh <- (reachable (head source) it)
+        rr <- (mapM (\x-> reachable x it) (tail source))
+        let meet = (foldr intersect  rh rr) in
           do
             dom <- dominator (trace ("SOURCE> "++(render$ppr source)) source) (trace ("MEET> "++(render$ppr meet)) meet) it
             return (x |-> trace (render$ppr dom) dom)
@@ -735,32 +737,38 @@ step2 ycs = aux2 ycs
 
         
   -- | looking for the types reachable from `init`
-  reachable :: RnMonoTy -> ImplicitTheory -> [RnMonoTy]
+  reachable :: RnMonoTy -> ImplicitTheory -> TcM [RnMonoTy]
   reachable init it = aux [] [init] it
     where 
-         aux :: [RnMonoTy]->[RnMonoTy]->ImplicitTheory->[RnMonoTy]
-         aux acc q@(at:rest) (xs:>x) = case (onestep (acc `union` q) at x) of 
+         aux :: [RnMonoTy]->[RnMonoTy]->ImplicitTheory-> TcM [RnMonoTy]
+         aux acc q@(at:rest) (xs:>x) = do
+           os <- (onestep (acc `union` q) at x it)
+           case os  of 
              Just v -> aux acc (q++[v]) xs
              Nothing -> aux acc q xs
          aux acc (at:rest) SN = aux (at:acc) rest it
-         aux acc [] _ = acc
+         aux acc [] _ = return acc
 
-  onestep :: [RnMonoTy]->RnMonoTy->ConvAxiom->Maybe RnMonoTy
-  onestep old at (MCA (MCT a b) exp)
+  onestep :: [RnMonoTy]->RnMonoTy->ConvAxiom->ImplicitTheory -> TcM (Maybe RnMonoTy)
+  onestep old at (MCA (MCT a b) exp) _
    | Right ty_subst <- unify [] [at :~: a] =
-       if (substInMonoTy ty_subst b) `elem` old then Nothing else
-         Just (substInMonoTy ty_subst b)
-   | Left _         <- unify [] [at :~: a] = Nothing
-  onestep old at (PCA pct@(PCT vars pairs mono@(MCT a b)) exp) 
-    | Right ty_subst <-  unify [] [at :~: a] = if ((substInMonoTy ty_subst b) `elem` old) && (sat (map snd pairs))
-      then Nothing
-      else Just (substInMonoTy ty_subst b)
-    | otherwise = Nothing   
+       if (substInMonoTy ty_subst b) `elem` old then return Nothing else
+         return$Just (substInMonoTy ty_subst b)
+   | Left _         <- unify [] [at :~: a] = return Nothing
+  onestep old at ca@(PCA pct@(PCT vars pairs mono@(MCT a b)) exp) it 
+    | Right ty_subst <-  unify [] [at :~: a] = do
+        isSat <- (sat ca it)
+        if ((substInMonoTy ty_subst b) `elem` old) && isSat then return Nothing else return$Just (substInMonoTy ty_subst b)
+    | otherwise = return Nothing   
 
   --TODO! Think its done somewhere else
-  sat :: [RnMonoConvTy] -> Bool
-  sat _ = True
-
+  sat :: ConvAxiom -> ImplicitTheory -> TcM Bool
+  sat ca it = do
+          ycs <- prepare ca it
+          _ <- solveY ycs
+          return True
+          `catchError` (\s -> return False)
+ 
 
   incomming :: RnMonoTy -> YCs -> [RnMonoTy]
   incomming at const = aux_in at [] const
@@ -776,23 +784,30 @@ step2 ycs = aux2 ycs
   dominator :: [RnMonoTy] -> [RnMonoTy] -> ImplicitTheory -> TcM (RnMonoTy)
   dominator _              []            _  = throwError ("no overlap")
   dominator _              [x]           _  = return x
-  dominator sources@(x:xs) sinks@(y:ys)  it = let b = (foldr intersect (mustsTo sources y it) (map (\z-> mustsTo sources z it) ys)) in
-    case (trace (render$ppr b) b) of
-    [x] -> return x
-    otherwise -> throwError ("no dominator. ambiguous")
+  dominator sources@(x:xs) sinks@(y:ys)  it =  do
+    fst <- (mustsTo sources y it)
+    oth <- (mapM (\z-> mustsTo sources z it) ys)
+    let b = (foldr intersect fst oth ) in
+      case (trace (render$ppr b) b) of
+        [x] -> return x
+        otherwise -> throwError ("no dominator. ambiguous")
   
-  mustsTo :: [RnMonoTy] -> RnMonoTy -> ImplicitTheory -> [RnMonoTy]
-  mustsTo sources@(x:xs) to it = 
-    foldr intersect (aux [] [[x]] it) (map (\init-> (aux [] [[init]] it)) sources)
+  mustsTo :: [RnMonoTy] -> RnMonoTy -> ImplicitTheory -> TcM [RnMonoTy]
+  mustsTo sources@(x:xs) to it = do
+    h <- (aux [] [[x]] it)
+    othersources <- (mapM (\init-> (aux [] [[init]] it)) sources)
+    return$foldr intersect h othersources 
       where 
-         aux :: [[RnMonoTy]]->[[RnMonoTy]]->ImplicitTheory->[RnMonoTy]
-         aux done_paths paths@(this@(at:rest):otherpaths) (xs:>x) = case (onestep this at x) of 
+         aux :: [[RnMonoTy]]->[[RnMonoTy]]->ImplicitTheory-> TcM [RnMonoTy]
+         aux done_paths paths@(this@(at:rest):otherpaths) (xs:>x) = do
+           os <- (onestep this at x it)
+           case os of 
              Just ty -> if (ty == to) then aux ((ty:this):done_paths) (this:otherpaths) xs else aux done_paths (this:(ty:this):otherpaths) xs
              Nothing -> aux done_paths paths xs
          aux done_paths paths@(this@(at:rest):otherpaths) SN = aux done_paths otherpaths it
          aux done_paths [] _ = case done_paths of
-           [el] -> el
-           (fst:rest) -> foldr intersect fst rest
+           [el] -> return el
+           (fst:rest) -> return $ foldr intersect fst rest
   
 -- * Overlap Checking
 -- ------------------------------------------------------------------------------
