@@ -21,6 +21,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 -- Parser
 import Text.Megaparsec
 import Text.Megaparsec.Char
+import Text.Megaparsec.Error
 
 -- * The Parsing Monad.
 -- ------------------------------------------------------------------------------
@@ -32,7 +33,7 @@ newtype SpaceConsumer = SC (PsM ())
 hsParse :: FilePath -> IO (Either String PsProgram)
 hsParse path = readFile path >>= \contents ->
   return $ case parse (runReaderT parser (SC sc)) path contents of
-    Left err -> Left "bla" --(errorBlundlePretty contents err)
+    Left err -> Left (errorBundlePretty err)
     Right p  -> Right p
   where
     parser = sc *> pProgram <* eof
