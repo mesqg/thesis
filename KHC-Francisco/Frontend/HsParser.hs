@@ -285,9 +285,10 @@ pTerm  =  pAppTerm
           <$  symbol "case"
           <*> pTerm
           <*  symbol "of"
-          <*> (\x -> do
-                  p <- x
-                  return [p]) pAlt --some (indent pAlt)
+          <*> some (indent pAlt)
+          -- <*> (\x -> do
+          --         p <- x
+          --         return [p]) pAlt --some (indent pAlt)
 
 pIConv :: PsM PsIConv          
 pIConv = ICC
