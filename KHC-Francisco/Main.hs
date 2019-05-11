@@ -31,14 +31,14 @@ runTest file = do
         (Right (((rn_pgm, _rn_ctx), us1), rn_env), _) ->
           case hsElaborate rn_env us1 rn_pgm of
             (Left err,_) -> throwMainError "typechecker" err
-            (Right ((((fc_pgm, tc_ty), envs), us2), _tc_env), _) ->
+            (Right ((((fc_pgm, tc_ty), envs), us2), _tc_env), _) -> -- do {-
               case fcTypeCheck envs us2 fc_pgm of
                 (Left err,_) -> throwMainError "System F typechecker" err
-                (Right ((fc_ty, _us3), _fc_env), _trace) -> do
+                (Right ((fc_ty, _us3), _fc_env), _trace) -> do --}
                   --putStrLn "---------------------------- Parsed Program ---------------------------"
                   --putStrLn $ renderWithColor $ ppr ps_pgm
-                  --putStrLn "---------------------------- Renamed Program ---------------------------"
-                  --putStrLn $ renderWithColor $ ppr rn_pgm
+                  putStrLn "---------------------------- Renamed Program ---------------------------"
+                  putStrLn $ renderWithColor $ ppr rn_pgm
                   --putStrLn "---------------------------- Renamed Env ---------------------------"
                   --putStrLn $ renderWithColor $ ppr rn_env
                   --putStrLn "---------------------------- TcEnv ---------------------------"

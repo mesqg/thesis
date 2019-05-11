@@ -446,6 +446,7 @@ elabTmApp tm1 tm2 = do
   (CS e y an rn) <- get -- Huge TODO!! Im sorry to anyone who sees this
   case rn of
     (x:xs) -> do
+      trace "ALARM!!!" (return ())
       put (CS e y an xs)
       storeEqCs [b :~: (TyVar x)]
     []     -> return ()
@@ -492,7 +493,7 @@ elabTmLocImp (ICC name pct@(PCT vars pairs monoty@(MCT a b)) exp) tm =
 -- probably TODO in elabTermWithSig
   pair <- ask
   let ft = snd (snd pair)
-  elab_exp <- extendTCs rnPHs types (liftGenM (elabTermWithSig [] ft exp (monoTyToPolyTy (mkRnArrowTy [a] b)))) 
+  elab_exp <- emptyIT (extendTCs rnPHs types (liftGenM (elabTermWithSig [] ft exp (monoTyToPolyTy (mkRnArrowTy [a] b)))) )
   cax <- liftGenM (do
     fc_a <- elabMonoTy a
     fc_b <- elabMonoTy b
@@ -535,8 +536,12 @@ polyTysToMonoTysM (ty:tys) = case polyTyToMonoTy ty of
 elabTmCase :: RnTerm -> [RnAlt] -> GenM (RnMonoTy, FcTerm)
 elabTmCase scr alts = do
   (scr_ty, fc_scr) <- elabTerm scr               -- Elaborate the scrutinee
+  b  <- TyVar <$> freshRnTyVar KStar 
   rhs_ty  <- TyVar <$> freshRnTyVar KStar        -- Generate a fresh type variable for the result
-  fc_alts <- mapM (elabHsAlt scr_ty rhs_ty) alts -- Check the alternatives
+  fc_alts <- mapM (elabHsAlt b rhs_ty) alts -- Check the alternatives
+  pair <- ask
+  j <- freshFcTmVar
+  storeYCs $ constrYCs j scr_ty b fc_scr (fst (snd pair)) 
   return (rhs_ty, FcTmCase fc_scr fc_alts)
 
 -- | Elaborate a case alternative
@@ -551,15 +556,17 @@ elabHsAlt scr_ty res_ty (HsAlt (HsPat dc xs) rhs) = do
   let arg_tys = map (substInPolyTy ty_subst) orig_arg_tys       -- Apply the renaming substitution to the argument types
   (rhs_ty, fc_rhs) <- extendTCs xs arg_tys (elabTerm rhs)   -- Type check the right hand side
   --storeEqCs [ scr_ty :~: foldl TyApp (TyCon tc) (map TyVar bs)  -- The scrutinee type must match the pattern type
-  j <- freshFcTmVar
-  pair <- ask
+  
+--  pair <- ask
 -- TODO!  storeYCs $ constrYCs j scr_ty (foldl TyApp (TyCon tc) (map TyVar bs)) (FcTmDataCon fc_dc:(map (FcTmVar . rnTmVarToFcTmVar) xs)) (fst (snd pair)) 
 -- GJ: don't forget to update comments
-  storeEqCs [ res_ty :~: rhs_ty ]                               -- All right hand sides should be the same
+  storeEqCs [ scr_ty :~: foldl TyApp (TyCon tc) (map TyVar bs)  -- The scrutinee type must match the pattern type
+            , res_ty :~: rhs_ty ]                               -- All right hand sides should be the same
 --  return (FcAlt (FcConPat fc_dc (map rnTmVarToFcTmVar xs)) fc_rhs)
 -- GJ: we need to discuss this in the next meeting. Why do we need a separate FcAltConv constructor?
 
-  return (FcAltConv (FcTmVar j) fc_rhs) --TODO (FcTmApp (FcTmVar j) )
+--  return (FcAltConv (FcTmVar j) fc_rhs) --TODO (FcTmApp (FcTmVar j) )
+  return (FcAlt (FcConPat fc_dc (map rnTmVarToFcTmVar xs)) fc_rhs)
 
 -- | Covert a renamed type variable to a System F type
 rnTyVarToFcType :: RnTyVar -> FcType
@@ -620,7 +627,7 @@ occursCheck a (TyVar b)       = a /= b
 solveY :: YCs -> TcM (FcTmSubst,HsTySubst)
 solveY ycs = do
   tysubst1 <- f ycs
-  (fctmsubst,tysubst2) <- auxSolveY [] (substInYCs mempty tysubst1 ycs)
+  (fctmsubst,tysubst2) <- auxSolveY [] (trace ("YCS to solve: "++(render$ppr (substInYCs mempty tysubst1 ycs))) (substInYCs mempty (trace ("after f! "++(render$ppr tysubst1)) tysubst1) ycs))
   return (fctmsubst,tysubst1<>tysubst2)
   `catchError` (\s-> throwError (s++" :solveY"))
   
@@ -632,6 +639,7 @@ solveY ycs = do
    entailYcs _ SN = return mempty
    entailYcs untch (xs :> x) = do
      (tmsubst,ty_subst) <- entailYct untch (singletonSnocList x)
+     trace ("ENTAIL YCT ty_subst>  "++(render$ppr ty_subst)) (return ())
      (rest,ty_subst2) <- entailYcs untch (substInYCs tmsubst ty_subst xs)
      return (rest <> tmsubst, ty_subst2 <> ty_subst)
     
@@ -671,15 +679,31 @@ solveY ycs = do
 
        return $ Just (singletonSnocList yct , mempty,ty_subst)
      | otherwise  = return Nothing
-   leftEntailsIConv untch ca@(PCA (PCT vars pairs (MCT a b)) exp) (YCt j (MCT ty1 ty2) tm it)
-     | Right ty_subst <- unify [] [ty1 :~: a]  = do
-       ycs <- prepare ca (xcludeSelf ca it)
+   -- If the conversion has type vars in the resulting type, we unify it with the end type ty2. Fail if not possible.    
+   leftEntailsIConv untch ca@(PCA (PCT vars pairs (MCT a b)) exp) yct@(YCt j (MCT ty1 ty2) tm it)
+     | Right _ <- unify [] [ty1 :~: a]  = do
+       --trace ("B> "++(render$ppr b)) (return ())
+       (ca'@(PCA (PCT vars' pairs' (MCT a' b')) exp'),f_sub) <- case (ftyvsOf b) of
+         []        -> freshenCA ca
+         otherwise -> 
+           case (do {unify [] [ty2 :~: b]}) of
+             Right uniB -> do
+               --trace "Unifying b and ty2!> " (return ())
+               fc_uniB <- elabHsTySubst uniB
+               let ca_u = (PCA (PCT vars (substInConds uniB pairs) (MCT a ty2)) (substFcTyInTm fc_uniB exp))
+               (exp,sub)<-freshenCA ca_u
+               return (exp,sub <> uniB)
+             otherwise -> throwError "Too much freedom"
+       ty_subst <- unify [] [ty1 :~: a']
+       fc_ty_subst <- elabHsTySubst ty_subst
+       ycs <- prepare (PCA (PCT vars' (substInConds ty_subst pairs') (MCT ty1 b')) (substFcTyInTm fc_ty_subst exp)) (xcludeSelf ca it)
+       trace ("b'> "++(render$ppr b')) (return ())
        (tm_subst,ty_subst2) <- auxSolveY untch ycs
-       let nb = (substInMonoTy (ty_subst2 <> ty_subst) b)
-       b' <- elabMonoTy nb
-       ty2' <- elabMonoTy ty2
-       let yct = substInYCt tm_subst ty_subst (YCt j (MCT nb ty2) (FcTmApp exp tm) it)
-       return $ Just (singletonSnocList  yct , mempty , ty_subst2 <> ty_subst)
+       let nb = (substInMonoTy (ty_subst2 <> ty_subst <> f_sub) b)
+       let yct = case tm of
+             FcDummyTerm -> substInYCt mempty ty_subst (YCt j (MCT nb ty2) (substFcTmInTm tm_subst exp') it)
+             otherwise   -> substInYCt mempty ty_subst (YCt j (MCT nb ty2) (FcTmApp (substFcTmInTm tm_subst exp') tm) it)
+       return $ Just (singletonSnocList  yct , mempty , ty_subst2 <> ty_subst <> f_sub)
        `catchError` (\s-> return Nothing)
      | otherwise  = return Nothing
      where
@@ -687,6 +711,16 @@ solveY ycs = do
          xcludeSelf ca (x:>xs)
            | ca == xs  = x
            | otherwise = (xcludeSelf ca x):>xs
+         --xcludeSelf _ SN = SN
+         freshenCA :: ConvAxiom -> TcM (ConvAxiom, HsTySubst)
+         freshenCA ca@(PCA (PCT labVars pairs mct) exp) = do
+         (f_vars,f_sub) <- freshenRnTyVars (labelOf labVars)
+         let mct' = substInMCT f_sub mct
+         let pairs' = substInConds f_sub pairs
+         let labVars' = zipWith (:|) f_vars (dropLabel labVars)
+         f_fc_sub <- (elabHsTySubst f_sub)
+         return (PCA (PCT labVars' pairs' mct') (substFcTyInTm f_fc_sub exp),f_sub)
+         
 
 -- | prepares the conditions of conditional ITC to check entailalibity
 prepare :: ConvAxiom -> ImplicitTheory -> TcM (YCs)
@@ -729,7 +763,7 @@ step2 ycs = aux2 ycs
         rr <- (mapM (\x-> reachable x it) (tail source))
         let meet = (foldr intersect  rh rr) in
           do
-            dom <- dominator (trace ("SOURCE> "++(render$ppr source)) source) (trace ("MEET> "++(render$ppr meet)) meet) it
+            dom <- dominator (trace ("SOURCE> "++(render$ppr source)) source) (trace ("MEET> "++(render$ppr meet)) meet) (trace ("IT> "++(show it)) it)
             return (x |-> trace (render$ppr dom) dom)
       otherwise -> do
         subst <- aux2 rest
@@ -800,12 +834,14 @@ step2 ycs = aux2 ycs
       where 
          aux :: [[RnMonoTy]]->[[RnMonoTy]]->ImplicitTheory-> TcM [RnMonoTy]
          aux done_paths paths@(this@(at:rest):otherpaths) (xs:>x) = do
-           os <- (onestep this at x it)
-           case os of 
-             Just ty -> if (ty == to) then aux ((ty:this):done_paths) (this:otherpaths) xs else aux done_paths (this:(ty:this):otherpaths) xs
+           os <- (onestep this (trace ("@"++(render$ppr at)) at) x it)
+           case (trace ("TO> "++(render$ppr os)) os) of 
+             Just ty -> if (ty == (trace ("TO> "++(render$ppr to)) to)) then aux ((ty:this):done_paths) (this:otherpaths) xs else aux done_paths (this:(ty:this):otherpaths) xs
              Nothing -> aux done_paths paths xs
          aux done_paths paths@(this@(at:rest):otherpaths) SN = aux done_paths otherpaths it
          aux done_paths [] _ = case done_paths of
+           []   -> return []
+           [[]] -> return []
            [el] -> return el
            (fst:rest) -> return $ foldr intersect fst rest
   
@@ -1175,25 +1211,25 @@ elabHsTySubst = mapSubM (return . rnTyVarToFcTyVar) elabMonoTy
 --   a) 
 --   b)
 
---plenty TO DO's... ugly baked in things. Only MonoConversions!
+--plenty TO DO's... ugly baked in things. 
 -- GJ: Uhm... We'll go through this function together in the next meeting...
-elabIConvDecl :: RnIConvDecl -> TcM (FcValBind,ConvAxiom)
+elabIConvDecl :: RnIConvDecl -> TcM (ConvAxiom)
 elabIConvDecl (IConvD i@(ICC name pct@(PCT vars pairs monoty@(MCT a b)) exp)) = do
      pair <- ask
      let ft = snd (snd pair)
      --make sure tyVars are fine
      let (rnPHs,types) = aux pairs
-     elab_exp <- extendTCs rnPHs types (elabTermWithSig [] ft exp (monoTyToPolyTy (mkRnArrowTy [a] b))) --TODO: why dropsuper here?
+     elab_exp <- emptyIT (extendTCs rnPHs types (case vars of
+                                          [] -> elabTermWithSig (labelOf vars) ft exp (monoTyToPolyTy (mkRnArrowTy [a] b))
+                                          otherwise ->  elabTermWithSig (labelOf vars) ft exp (monoTyToPolyTy (mkRnArrowTy [a] b))
+                                       )) --TODO: why dropsuper here?
      -- Check the implicit does what it claims to do.
      fc_a <- elabMonoTy a
      fc_b <- elabMonoTy b
      let ext_it = case pairs of
-           [] -> (MCA monoty elab_exp)
-           otherwise -> (PCA pct elab_exp)
-     let fcname = rnTmVarToFcTmVar name
-     let fc_type = mkFcArrowTy fc_a fc_b
-     let fc_val_bind = FcValBind fcname fc_type elab_exp
-     return (fc_val_bind,ext_it)
+           [] -> (MCA monoty (trace ("Elab'd MCA: "++(render$ppr elab_exp)) elab_exp))
+           otherwise -> (PCA pct (trace ("Elab'd PCA: "++(render$ppr elab_exp)) elab_exp))
+     return (ext_it)
      where
        aux :: [(RnTmVar,RnMonoConvTy)] -> ([RnTmVar],[RnPolyTy])
        aux pairs = (map fst pairs, map (\(MCT a b) -> monoTyToPolyTy (mkRnArrowTy [a] b)) (map snd pairs))
@@ -1205,6 +1241,9 @@ extendTC a b = local (\(tcCtx,i) -> (extendCtxTm tcCtx a b,i))
 
 extendSuper :: MonadReader (TcCtx,(ImplicitTheory,FullTheory)) m => ProgramTheory -> m b -> m b
 extendSuper pt  = local (\(x,(iCtx,ft)) -> (x,(iCtx,ft `ftExtendSuper` pt)))
+
+emptyIT :: MonadReader (TcCtx,(ImplicitTheory,FullTheory)) m => m b -> m b
+emptyIT = local (\(x,(iCtx,ft)) -> (x,(SN,ft)))
 
 setFT :: MonadReader (TcCtx,(ImplicitTheory,FullTheory)) m => FullTheory -> m b -> m b
 setFT ft  = local (\(x,(iCtx,_)) -> (x,(iCtx,ft)))          
@@ -1223,19 +1262,19 @@ elabTermSimpl theory tm = do
   ((mono_ty, fc_tm), wanted_eqs, wanted_ics, wanted_ccs) <- runGenM $ elabTerm tm
 
   -- Simplify as much as you can
-  ty_subst <- unify mempty $ wanted_eqs -- Solve the needed equalities first
+  ty_subst <- unify mempty $ (trace ("EQs: "++(render$ppr wanted_eqs)) wanted_eqs) -- Solve the needed equalities first
 
   let refined_wanted_ics = substInYCs mempty ty_subst wanted_ics                      -- refine the wanted implicit conversion constraints
-  let refined_mono_ty    = substInMonoTy              ty_subst mono_ty          -- refine the monotype
+  let refined_mono_ty    = substInMonoTy (trace ("TySUBST from EQ: "++(render$ppr ty_subst)) ty_subst) mono_ty          -- refine the monotype
 
 
   -- NEW: YCs
-  (subst_place_holding_vars, ty_subst2) <- solveY refined_wanted_ics
-  let refined_wanted_ccs = substInSimpleProgramTheory  (ty_subst2 <> ty_subst)  wanted_ccs       -- refine the wanted class constraints
+  (subst_place_holding_vars, ty_subst2) <- solveY (trace ("refined ICs: "++(render$ppr refined_wanted_ics)) refined_wanted_ics)
+  let refined_wanted_ccs = substInSimpleProgramTheory  ((trace ("TySUBST from YCs: "++(render$ppr ty_subst2)) ty_subst2) <> ty_subst)  wanted_ccs       -- refine the wanted class constraints
   -- End NEW
   
   let fc_tm_after_Y = substFcTmInTm subst_place_holding_vars  fc_tm
-  refined_fc_tm <- elabHsTySubst  (ty_subst<>ty_subst2)  >>= return . flip substFcTyInTm fc_tm_after_Y -- refine the term
+  refined_fc_tm <- elabHsTySubst  (trace ("TySUBST from YCs: "++(render$ppr ty_subst2)) (ty_subst<>ty_subst2))  >>= return . flip substFcTyInTm fc_tm_after_Y -- refine the term
   let untouchables = nub (ftyvsOf refined_mono_ty)
 
   (residual_cs, ev_subst) <- entailDetTcM untouchables theory (trace ("SimplREFINED: "++(render$ppr refined_wanted_ccs)) refined_wanted_ccs)
@@ -1258,7 +1297,7 @@ elabTermSimpl theory tm = do
                        substFcTmInTm ev_subst $
                          refined_fc_tm
 
-  return (gen_ty, full_fc_tm)
+  return (trace "DASS" (gen_ty, full_fc_tm))
 
 -- * Program Elaboration
 -- ------------------------------------------------------------------------------
@@ -1299,7 +1338,7 @@ elabProgram (PgmData data_decl pgm) = do
 
 -- | Elaborate an implicit conversion declaration
 elabProgram (PgmImpl iconv_decl pgm) = do
-  (fc_val_bind,ca) <- elabIConvDecl iconv_decl
+  ca <- elabIConvDecl iconv_decl
   (fc_pgm, ty) <- extendIT ca (elabProgram pgm)
   --let fc_program = FcPgmValDecl fc_val_bind fc_pgm
   return (fc_pgm, ty)  
@@ -1324,3 +1363,66 @@ hsElaborate rn_gbl_env us pgm = runWriter
     tc_init_theory  = FT mempty mempty mempty
     tc_init_ctx     = mempty
     tc_init_gbl_env = TcEnv mempty mempty mempty
+----------------------------------------------------------
+
+-- | PureElaborate a term
+pureElabTerm :: RnTerm -> GenM (RnMonoTy, FcTerm)
+pureElabTerm (TmApp tm1 tm2)   = pureElabTmApp tm1 tm2
+pureElabTerm (TmAbs x tm)      = pureElabTmAbs x tm
+pureElabTerm (TmVar x)         = pureElabTmVar x
+pureElabTerm (TmCon dc)        = liftGenM (pureElabTmCon dc)
+pureElabTerm (TmLet x tm1 tm2) = pureElabTmLet x tm1 tm2
+
+
+-- | PureElaborate a term application
+pureElabTmApp :: RnTerm -> RnTerm -> GenM (RnMonoTy, FcTerm)
+pureElabTmApp tm1 tm2 = do
+  (ty1, fc_tm1) <- pureElabTerm tm1
+  (ty2, fc_tm2) <- pureElabTerm tm2
+  a <- TyVar <$> freshRnTyVar KStar
+  storeEqCs [mkRnArrowTy [ty2] a :~: ty1]
+  return (a, FcTmApp fc_tm1 fc_tm2)
+
+-- | PureElaborate a lambda abstraction
+pureElabTmAbs :: RnTmVar -> RnTerm -> GenM (RnMonoTy, FcTerm)
+pureElabTmAbs x tm = do
+  liftGenM (tmVarNotInTcCtxM x) {- ensure not bound -}
+  tv <- freshRnTyVar KStar
+  (ty, fc_tm) <- extendTC x (monoTyToPolyTy (TyVar tv)) $ pureElabTerm tm
+  let result = FcTmAbs (rnTmVarToFcTmVar x) (rnTyVarToFcType tv) fc_tm
+  return (mkRnArrowTy [TyVar tv] ty, result)
+
+-- | PureElaborate a term variable
+pureElabTmVar :: RnTmVar -> GenM (RnMonoTy, FcTerm)
+pureElabTmVar x = do
+  poly_ty     <- liftGenM (lookupTmVarN x)
+  (bs,cs,ty)  <- liftGenM (instPolyTy poly_ty)
+  _           <- extendTcCtxTysM bs $ liftGenM (wfElabClsCs cs) -- Check well formedness of the constraints
+  (ds,ann_cs) <- liftGenM (annotateClsCs cs)
+  storeAnnCts $ ann_cs -- store the constraints
+  let fc_ds = map FcTmVar ds         -- System F representation
+  let fc_bs = map rnTyVarToFcType bs -- System F representation
+  let fc_tm = fcTmApp (fcTmTyApp (rnTmVarToFcTerm x) fc_bs) fc_ds
+  return (ty, fc_tm)
+
+-- | PureElaborate a let binding (monomorphic, recursive)
+pureElabTmLet :: RnTmVar -> RnTerm -> RnTerm -> GenM (RnMonoTy, FcTerm)
+pureElabTmLet x tm1 tm2 = do
+  liftGenM (tmVarNotInTcCtxM x) {- ensure not bound -}
+  tv <- freshRnTyVar KStar
+  (ty1, fc_tm1) <- extendTC x (monoTyToPolyTy (TyVar tv)) $ pureElabTerm tm1
+  (ty2, fc_tm2) <- extendTC x (monoTyToPolyTy (TyVar tv)) $ pureElabTerm tm2 -- could have also passed ty1 but it is the same
+  storeEqCs [TyVar tv :~: ty1]
+  let fc_tm = FcTmLet (rnTmVarToFcTmVar x) (rnTyVarToFcType tv) fc_tm1 fc_tm2
+  return (ty2, fc_tm)
+
+-- | PureElaborate a data constructor
+pureElabTmCon :: RnDataCon -> TcM (RnMonoTy, FcTerm)
+pureElabTmCon dc = do
+  (bs, arg_tys, tc) <- freshenDataConSig dc
+  fc_dc <- lookupDataCon dc
+
+  let mono_ty = mkRnArrowTy arg_tys (mkTyConApp tc (map TyVar bs))                 -- Haskell monotype
+  let fc_tm = fcTmTyApp (FcTmDataCon fc_dc) (rnTyVarsToFcTypes bs) -- System F term
+
+  return (mono_ty, fc_tm)

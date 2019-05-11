@@ -92,7 +92,7 @@ instance SubstVar FcTyVar FcType FcTerm where
     FcTmDataCon dc       -> FcTmDataCon dc
     FcTmLet x ty tm1 tm2 -> FcTmLet x (substVar a aty ty) (substVar a aty tm1) (substVar a aty tm2)
     FcTmCase tm cs       -> FcTmCase (substVar a aty tm) (map (substVar a aty) cs)
-
+    FcDummyTerm          -> FcDummyTerm
 -- | Substitute a type variable for a type in a case alternative UPDATED
 instance SubstVar FcTyVar FcType FcAlt where
   substVar a ty (FcAlt p tm) = FcAlt p (substVar a ty tm)
@@ -243,9 +243,22 @@ substInYCs tmsubst tysubst = fmap (substInYCt tmsubst tysubst)
 substInQualTy :: HsTySubst -> RnQualTy -> RnQualTy
 substInQualTy = sub_rec
 
+-- | Apply a type substitution to a list of conditions
+substInConds :: HsTySubst -> [(HsTmVar a, RnMonoConvTy)] -> [(HsTmVar a, RnMonoConvTy)]
+substInConds sub conds = map (\(var,mct)->(var,substInMCT sub mct)) conds
+
+-- | Apply a type substitution to a type scheme
+substInMCT :: HsTySubst -> RnMonoConvTy -> RnMonoConvTy
+substInMCT sub (MCT a b) = MCT (substInMonoTy sub a) (substInMonoTy sub b)
+
+{-- | Apply a type substitution to a type scheme
+substInCA :: HsTySubst -> ConvAxiom -> ConvAxiom
+substInCA sub (P a b) = MCT (substInMonoTy sub a) (substInMonoTy sub b) -}
+
 -- | Apply a type substitution to a type scheme
 substInPolyTy :: HsTySubst -> RnPolyTy -> RnPolyTy
 substInPolyTy = sub_rec
+
 
 -- * System F Type Substitution
 -- ------------------------------------------------------------------------------

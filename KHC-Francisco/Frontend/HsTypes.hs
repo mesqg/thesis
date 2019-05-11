@@ -515,7 +515,7 @@ instance Eq ConvAxiom where
   (==) _ _ = False
   
 instance Show ConvAxiom where
-  show (PCA  a _) = show a
+  show (PCA  a exp) = (show a)++" EXP: "++(render$ppr exp)
   show (MCA a _) = show a
   show CV_Nil    = "CV_Nil"
   
@@ -804,9 +804,9 @@ instance (Symable a, PrettyPrint a) => PrettyPrint (IConvDecl a) where
 -- | Pretty print Implicit Conversion declarations
 instance (Symable a, PrettyPrint a) => PrettyPrint (IConv a) where
   ppr (ICC iname x iconv)
-    = text "bla" {-hang (colorDoc green (text "implicit") <+> ppr a <+> ppr b <+> ppr iconv )
+    = hang (colorDoc green (text "implicit") <+> ppr iname <+> darrow <+> ppr iconv )
            2
-           (ppr (symOf iname)) -}
+           (ppr (symOf iname))
   needsParens _ = False
   
   -- | Pretty print class declarations
