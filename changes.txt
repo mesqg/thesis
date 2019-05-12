@@ -1,5 +1,0 @@
-Comes late but:
-21/03/2019
-Changed
-  data FcAlt -> it now has an extra constructor for top-level application instead of data constructor. Cause changes in prettyprinting and in "instance SubstVar FcTyVar FcType FcAlt" and "instance SubstVar FcTmVar FcTerm FcAlt where", Subst file
-  elabTermWithSig now also receives an ImplicitTheory. It now is under the specification (cases and applications in the implementation of instance methods are treated as cases and applications in the final term as far as implicit conversions are concerned)

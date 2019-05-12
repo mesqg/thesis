@@ -12,7 +12,7 @@
 
 \begin{document}
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-% 15/02/2019. 5/04/2019
+% 12/05/2019
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 % SYNTAX
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -24,10 +24,16 @@
  % \phantom{pgm ::\,|\,}|\,\term
   \\[5mm]
  data\,::= data\;T\;\tyVar=K\;\overline{\type}\\
- class ::=class TC\,a\textbf{ where }\{f=\typeS\}\\
+ class ::=class\; TC\,a\textbf{ where }\{f=\typeS\}\\
  inst\;::=instance\,A_{Cls}\Rightarrow TC \,\type\textbf{ where }\{f=\term\}\\
-
+ impl\,::=implicit\; Impl
   \\[5mm]
+  \type ::= \tyVar\,|\,\type_1\to\type_2\,|\,T\,\overline{\type}\\
+  \qtype ::= \type\,|\,Cls \Rightarrow \qtype\\
+  \typeS ::= \qtype\,|\,\forall\tyVar.\typeS\\
+  \type_{\sim} ::= \type \to \type\\
+  \typeS_{\sim} ::= \forall \overline {\tyVar} . \overline{(j : \type_{\sim})} \Rightarrow \type_{\sim}
+ \\[5mm]
 
   \term ::= \tmVar\\
   \phantom{\term ::}|\,\lambda \tmVar.\term\\
@@ -35,21 +41,18 @@
   \phantom{\term ::}|\, K\\
   \phantom{\term ::}|\, case \, \term_1 \, of\, (K \tmVar) \rightarrow \term_2\\
   \phantom{\term ::}|\, let \, \tmVar \, =\, \term_1 \,in\, \term_2  \\
-  \phantom{\term ::}|\, \iLocal{A_{Impl}}{\type_{from}}{\type_{to}}{\term_1}{\term_2}
+  \phantom{\term ::}|\, locimp \; Impl\; in\; \term_2
+
   \\[5mm]
-  \type ::= \tyVar\,|\,\type_1\to\type_2\,|\,T\,\overline{\type}\\
-  \qtype ::= \type\,|\,Cls \Rightarrow \qtype\\
-  \typeS ::= \qtype\,|\,\forall\tyVar.\typeS
-  \\[5mm]
-  A_X ::= \bullet\,|\,A_X,X\\
-  X ::= Cls\,|\,Impl\\
+  A_{Cls} ::= \bullet\,|\,A_{Cls},Cls\\
+%  X ::= Cls\,|\,Impl\\
   Cls ::= TC\,\type\\
-  Impl ::= \type_{from}\to\type_{to}=\term\\
+  Impl ::= i : \typeS_{\sim}=\term\\
   \\[5mm]
   \tyEnv::=\bullet\,|\,\tyEnv,\tmVar:\typeS\,|\,\tyEnv,\tyVar\,|\,\tyEnv,K:\typeS\,|\,\tyEnv,T\\
   \thEnv::=\overline{R}\\
   R ::= \forall\overline{\tyVar}.A_{Cls}\Rightarrow Cls\\
-  \imEnv::=\overline{\forall \overline{\tyVar}.A_{Impl}\Rightarrow Impl}
+  \imEnv::=\overline{Impl}
   \end{array}
 \]
   \caption{Source language syntax}
@@ -70,7 +73,7 @@
            {\progTyping{\thEnv}{\imEnv}{\tyEnv}{data;pgm}{\type}}
            \\[5mm]           
 \inferrule*[right=Class]
-           {\classTyping{\thEnv}{\tyEnv}{class}{\thEnv'}{\tyEnv'}\\\progTyping{\thEnv'}{\imEnv}{\tyEnv'}{pgm}{\type}}
+            {\classTyping{\tyEnv}{class}{\tyEnv'}\\\progTyping{\thEnv}{\imEnv}{\tyEnv'}{pgm}{\type}}
            {\progTyping{\thEnv}{\imEnv}{\tyEnv}{class;pgm}{\type}}
            \\[5mm]
 \inferrule*[right=Instance]
@@ -106,7 +109,7 @@
 \]
 
 \begin{flushleft}
-  \namedRuleform{ \classTyping{\thEnv}{\tyEnv}{class}{\thEnv'}{\tyEnv'}}
+  \namedRuleform{ \classTyping{\tyEnv}{class}{\tyEnv'}}
                 {Class Declaration Typing}
 \end{flushleft}
 \[
@@ -115,15 +118,24 @@
            {\classTyping{\tyEnv}{class\, TC\,a\textbf{ where }\{f::\typeS\}}{\tyEnv,f:\forall\tyVar.TC\tyVar\Rightarrow \typeS}}
 \]
 \begin{flushleft}
-  \namedRuleform{ \instTyping{\thEnv}{\imEnv}{\tyEnv}{inst}{\thEnv'} }
+  \namedRuleform{ \instTyping{\thEnv}{\tyEnv}{inst}{\thEnv'} }
                 {Instance Declaration Typing}
 \end{flushleft}
 \[
 \inferrule*[]
-           {\overline{b}=fv(\type)\\class\,TC\,a\textbf{ where }\{f::\sigma\}\\ \progTyping{\thEnv}{\imEnv}{\tyEnv,\overline{b}}{\term}{[\type/\tyVar]\sigma}}
-           {\instTyping{\thEnv}{\tyEnv}{instance\,A_{}\Rightarrow TC \,\type\textbf{ where }\{f=\term\}}{\thEnv,\forall\overline{b}.A\Rightarrow TC\,\type;\overline{R_L} \rangle}}
+           {\overline{b}=fv(\type)\\class\;TC\,a\textbf{ where }\{f::\sigma\}\\ \txTerm{\thEnv}{\imEnv}{\tyEnv,\overline{b}}{\term}{[\type/\tyVar]\sigma}}
+           {\instTyping{\thEnv}{\tyEnv}{instance\,A_{}\Rightarrow TC \,\type\textbf{ where }\{f=\term\}}{\thEnv,\forall\overline{b}.A\Rightarrow TC\,\type}}
 \]
-
+\begin{flushleft}
+  \namedRuleform{ \imEnvBuild{\thEnv}{\imEnv}{\tyEnv}{impl}{\imEnv'} }
+                {Implicit Declaration Typing}
+\end{flushleft}
+\[
+\inferrule*[]
+           {\txTerm{\thEnv}{\bullet}{\tyEnv,\overline{\tyVar},\overline{j_i : (\type_{\sim})}_i}{\term}{\type_{\sim}}}
+           {\imEnvBuild{\thEnv}{\imEnv}{\tyEnv}
+             {(implicit\, i : \forall \overline{\tyVar}.\overline{j_i : (\type_{\sim})_i} \Rightarrow \type_{\sim} = \term)}{\imEnv,i}}
+\]
   \caption{Declaration Typing}
 \end{figure}
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -188,10 +200,10 @@
   \\[5mm]
   \inferrule*[right=TmLocimp]
   {
-  \txTerm{\thEnv}{\imEnv,A_{Impl}}{\tyEnv}{\term}{\type_{from} \rightarrow \type_{to}} \\
-  \txTerm{\thEnv}{\imEnv,A_{Impl} \Rightarrow(\type_{from}\to\type_{to} = \term)}{\tyEnv}{\term_2}{\type_2}
+  \txTerm{\thEnv}{\bullet}{\tyEnv,\overline{\tyVar},\overline{j_i :\type_{\sim_{i}}}}{\term}{\type_{\sim}} \\
+  \txTerm{\thEnv}{\imEnv,i}{\tyEnv}{\term_2}{\type_2}
   }
-  { \txTerm{\thEnv}{\imEnv}{\tyEnv}{(\iLocal{A_{Impl}}{\type_{from}}{\type_{to}}{\term_1}{\term_2})}{\type_2} }
+  { \txTerm{\thEnv}{\imEnv}{\tyEnv}{(\iLocal{i}{\forall \overline{\tyVar}.\overline{j_i :\type_{\sim_{i}}}\Rightarrow\type_{\sim}}{\term_1}{\term_2})}{\type_2} }
   \\[5mm]
   \inferrule*[right=Constraint Introduction]
              {\txTerm{\thEnv,Cls}{\imEnv}{\tyEnv}{\term}{\type}}
