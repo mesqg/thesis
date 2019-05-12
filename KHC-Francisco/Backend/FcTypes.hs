@@ -176,7 +176,7 @@ data FcPat = FcConPat FcDataCon [FcTmVar]
 
 -- | Case alternative(s) UPDATED!
 data FcAlt  = FcAlt FcPat FcTerm
-            | FcAltConv FcTerm FcTerm
+
 type FcAlts = [FcAlt]
 
 -- * Some smart constructors (uncurried variants)
@@ -309,7 +309,6 @@ instance PrettyPrint FcPat where
 -- | Pretty print case alternatives UPDATED
 instance PrettyPrint FcAlt where
   ppr (FcAlt p tm) = ppr p <+> arrow <+> ppr tm
-  ppr (FcAltConv t1 t2) = ppr t1 <+> arrow <+> ppr t2  
   needsParens _    = True
 
 -- | Pretty print data declarations

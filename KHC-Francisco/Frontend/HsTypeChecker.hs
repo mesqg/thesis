@@ -542,7 +542,7 @@ elabTmCase scr alts = do
   pair <- ask
   j <- freshFcTmVar
   storeYCs $ constrYCs j scr_ty b fc_scr (fst (snd pair)) 
-  return (rhs_ty, FcTmCase fc_scr fc_alts)
+  return (rhs_ty, FcTmCase (FcTmVar j) fc_alts)
 
 -- | Elaborate a case alternative
 elabHsAlt :: RnMonoTy {- Type of the scrutinee -}
@@ -555,17 +555,8 @@ elabHsAlt scr_ty res_ty (HsAlt (HsPat dc xs) rhs) = do
   (bs, ty_subst) <- liftGenM (freshenRnTyVars as)               -- Generate fresh universal type variables for the universal tvs
   let arg_tys = map (substInPolyTy ty_subst) orig_arg_tys       -- Apply the renaming substitution to the argument types
   (rhs_ty, fc_rhs) <- extendTCs xs arg_tys (elabTerm rhs)   -- Type check the right hand side
-  --storeEqCs [ scr_ty :~: foldl TyApp (TyCon tc) (map TyVar bs)  -- The scrutinee type must match the pattern type
-  
---  pair <- ask
--- TODO!  storeYCs $ constrYCs j scr_ty (foldl TyApp (TyCon tc) (map TyVar bs)) (FcTmDataCon fc_dc:(map (FcTmVar . rnTmVarToFcTmVar) xs)) (fst (snd pair)) 
--- GJ: don't forget to update comments
   storeEqCs [ scr_ty :~: foldl TyApp (TyCon tc) (map TyVar bs)  -- The scrutinee type must match the pattern type
             , res_ty :~: rhs_ty ]                               -- All right hand sides should be the same
---  return (FcAlt (FcConPat fc_dc (map rnTmVarToFcTmVar xs)) fc_rhs)
--- GJ: we need to discuss this in the next meeting. Why do we need a separate FcAltConv constructor?
-
---  return (FcAltConv (FcTmVar j) fc_rhs) --TODO (FcTmApp (FcTmVar j) )
   return (FcAlt (FcConPat fc_dc (map rnTmVarToFcTmVar xs)) fc_rhs)
 
 -- | Covert a renamed type variable to a System F type
@@ -1364,65 +1355,3 @@ hsElaborate rn_gbl_env us pgm = runWriter
     tc_init_ctx     = mempty
     tc_init_gbl_env = TcEnv mempty mempty mempty
 ----------------------------------------------------------
-
--- | PureElaborate a term
-pureElabTerm :: RnTerm -> GenM (RnMonoTy, FcTerm)
-pureElabTerm (TmApp tm1 tm2)   = pureElabTmApp tm1 tm2
-pureElabTerm (TmAbs x tm)      = pureElabTmAbs x tm
-pureElabTerm (TmVar x)         = pureElabTmVar x
-pureElabTerm (TmCon dc)        = liftGenM (pureElabTmCon dc)
-pureElabTerm (TmLet x tm1 tm2) = pureElabTmLet x tm1 tm2
-
-
--- | PureElaborate a term application
-pureElabTmApp :: RnTerm -> RnTerm -> GenM (RnMonoTy, FcTerm)
-pureElabTmApp tm1 tm2 = do
-  (ty1, fc_tm1) <- pureElabTerm tm1
-  (ty2, fc_tm2) <- pureElabTerm tm2
-  a <- TyVar <$> freshRnTyVar KStar
-  storeEqCs [mkRnArrowTy [ty2] a :~: ty1]
-  return (a, FcTmApp fc_tm1 fc_tm2)
-
--- | PureElaborate a lambda abstraction
-pureElabTmAbs :: RnTmVar -> RnTerm -> GenM (RnMonoTy, FcTerm)
-pureElabTmAbs x tm = do
-  liftGenM (tmVarNotInTcCtxM x) {- ensure not bound -}
-  tv <- freshRnTyVar KStar
-  (ty, fc_tm) <- extendTC x (monoTyToPolyTy (TyVar tv)) $ pureElabTerm tm
-  let result = FcTmAbs (rnTmVarToFcTmVar x) (rnTyVarToFcType tv) fc_tm
-  return (mkRnArrowTy [TyVar tv] ty, result)
-
--- | PureElaborate a term variable
-pureElabTmVar :: RnTmVar -> GenM (RnMonoTy, FcTerm)
-pureElabTmVar x = do
-  poly_ty     <- liftGenM (lookupTmVarN x)
-  (bs,cs,ty)  <- liftGenM (instPolyTy poly_ty)
-  _           <- extendTcCtxTysM bs $ liftGenM (wfElabClsCs cs) -- Check well formedness of the constraints
-  (ds,ann_cs) <- liftGenM (annotateClsCs cs)
-  storeAnnCts $ ann_cs -- store the constraints
-  let fc_ds = map FcTmVar ds         -- System F representation
-  let fc_bs = map rnTyVarToFcType bs -- System F representation
-  let fc_tm = fcTmApp (fcTmTyApp (rnTmVarToFcTerm x) fc_bs) fc_ds
-  return (ty, fc_tm)
-
--- | PureElaborate a let binding (monomorphic, recursive)
-pureElabTmLet :: RnTmVar -> RnTerm -> RnTerm -> GenM (RnMonoTy, FcTerm)
-pureElabTmLet x tm1 tm2 = do
-  liftGenM (tmVarNotInTcCtxM x) {- ensure not bound -}
-  tv <- freshRnTyVar KStar
-  (ty1, fc_tm1) <- extendTC x (monoTyToPolyTy (TyVar tv)) $ pureElabTerm tm1
-  (ty2, fc_tm2) <- extendTC x (monoTyToPolyTy (TyVar tv)) $ pureElabTerm tm2 -- could have also passed ty1 but it is the same
-  storeEqCs [TyVar tv :~: ty1]
-  let fc_tm = FcTmLet (rnTmVarToFcTmVar x) (rnTyVarToFcType tv) fc_tm1 fc_tm2
-  return (ty2, fc_tm)
-
--- | PureElaborate a data constructor
-pureElabTmCon :: RnDataCon -> TcM (RnMonoTy, FcTerm)
-pureElabTmCon dc = do
-  (bs, arg_tys, tc) <- freshenDataConSig dc
-  fc_dc <- lookupDataCon dc
-
-  let mono_ty = mkRnArrowTy arg_tys (mkTyConApp tc (map TyVar bs))                 -- Haskell monotype
-  let fc_tm = fcTmTyApp (FcTmDataCon fc_dc) (rnTyVarsToFcTypes bs) -- System F term
-
-  return (mono_ty, fc_tm)

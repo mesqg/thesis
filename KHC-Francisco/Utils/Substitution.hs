@@ -96,7 +96,6 @@ instance SubstVar FcTyVar FcType FcTerm where
 -- | Substitute a type variable for a type in a case alternative UPDATED
 instance SubstVar FcTyVar FcType FcAlt where
   substVar a ty (FcAlt p tm) = FcAlt p (substVar a ty tm)
-  substVar a ty (FcAltConv t1 t2) = FcAltConv (substVar a ty t1) (substVar a ty t2)
   -- GEORGE: Now the patterns do not bind type variables so we don't have to check for shadowing here.
 
 -- * Target Language SubstVar Instances (Term Substitution)
@@ -128,7 +127,6 @@ instance SubstVar FcTmVar FcTerm FcAlt where
     | not (distinct xs) = error "substFcTmVarInAlt: Variables in pattern are not distinct" -- extra redundancy for safety
     | any (==x) xs      = error "substFcTmVarInAlt: Shadowing"
     | otherwise         = FcAlt (FcConPat dc xs) (substVar x xtm tm)
-  substVar x xtm (FcAltConv t1 t2) = FcAltConv (substVar x xtm t1) (substVar x xtm t2)
 
 -- ------------------------------------------------------------------------------
 
