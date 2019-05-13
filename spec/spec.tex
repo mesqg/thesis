@@ -32,7 +32,8 @@
   \qtype ::= \type\,|\,Cls \Rightarrow \qtype\\
   \typeS ::= \qtype\,|\,\forall\tyVar.\typeS\\
   \type_{\sim} ::= \type \to \type\\
-  \typeS_{\sim} ::= \forall \overline {\tyVar} . \overline{(j : \type_{\sim})} \Rightarrow \type_{\sim}
+  \typeS_{\sim} ::= \forall \overline {\tyVar} . \overline{(j : \type_{\sim})} \Rightarrow \type_{\sim}\\
+  \typeS_x ::= \forall \overline{\tyVar}.\type_{\sim}\Rightarrow \type
  \\[5mm]
 
   \term ::= \tmVar\\
@@ -232,21 +233,21 @@
 
 \begin{figure}
 \begin{flushleft}
-  \namedRuleform{ \elabTerm{\thEnv}{\imEnv}{\tyEnv}{\term}{\type}{\term'}}
+  \namedRuleform{ \elabTerm{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term}{\typeS_x}{\term'}}
                 {}
 \end{flushleft}
 \[
 \inferrule*[]
-           {\Theta = unify(E)\\\varphi = resolve(f(\Theta(Y)))\\\overline{\tyVar}=fv(f(\Theta(\type)))\\\overline{C} \leftarrow f\\\infTermTrans{\imEnv}{\tyEnv}{\term}{\type}{E}{Y}{\term'}}
-           {\elabTerm{\thEnv}{\imEnv}{\tyEnv}{\term}{\forall \overline{\tyVar}.\overline{C}\Rightarrow f(\Theta(\type))}{\varphi(\term')}}
+           {\Theta = unify(E)\\\varphi = resolve(f(\Theta(Y)))\\\overline{\tyVar}=fv(f(\Theta(\type)))\\\overline{\type_{\sim}} \leftarrow f\\\tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term}{\type}{E}{Y}{\highlight{Cls}}{\term'}\\\highlight{\thEnv \vDash f(\Theta(Cls))}}
+           {\elabTerm{\thEnv}{\imEnv}{\tyEnv}{\term}{\forall \overline{\tyVar}.\overline{\type_{\sim}}\Rightarrow f(\Theta(\type))}{\varphi(\term')}}
 \]
 
 
 \begin{align}
   unify(\bullet)&=\bullet\\
   unify(E, a \sim a) &= unify(E)           \\
-  unify(E, \type \sim \tyVar&= unify(E)) \circ [\type/\tyVar]\\
-  unify(E, \tyVar \sim \type &= unify(E)) \circ [\type/\tyVar]\\
+  unify(E, \type \sim \tyVar)&= unify(E)) \circ [\type/\tyVar]\\
+  unify(E, \tyVar \sim \type) &= unify(E)) \circ [\type/\tyVar]\\
   unify(E, (\type_1 \to \type_2) \sim (\type_3 \to \type_4)) &= unify(E,\type_1 \sim \type_3,\type_2 \sim \type_4)
 \end{align}           
 \[
@@ -266,49 +267,65 @@
 \end{figure}
 \begin{figure}
 \begin{flushleft}
-  \namedRuleform{ \infTermTrans{\imEnv}{\tyEnv}{\term}{\type}{\eqCts}{\imCts}{\term'}}
+  \namedRuleform{ \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term}{\type}{\eqCts}{\imCts}{\highlight{Cls}}{\term'}}
                 {Type Inference and Partial Translation}
 \end{flushleft}
 \[
 \begin{array}{@{\hspace{0mm}}c@{\hspace{0mm}}}
   \inferrule*[right=Var]
-             {(\tmVar : \type)\in\tyEnv}
-             {\infTermTrans{\imEnv}{\tyEnv}{\tmVar}{\type}{\bullet}{\bullet}{\tmVar}}
+             {(\tmVar : \forall \overline{\tyVar}.\highlight{\overline{Cls_j \Rightarrow}}\type)\in\tyEnv \\ \overline{b} \; fresh}
+             {\tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\tmVar}{[\overline{\tyVar}\mapsto\overline{b}]\type}{\bullet}{\bullet}{\highlight{\overline{[\overline{\tyVar}\mapsto\overline{b}]Cls_j}}}{\tmVar}}
 
              \quad\quad
              
   \inferrule*[right=Constr]
              {(K:\forall \tyVar . \type) \in \tyEnv}
-             {\infTermTrans{\imEnv}{\tyEnv}{K}{[\tyVar \mapsto \type']\type}{\bullet}{\bullet}{K}}
+             {\tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{K}{[\tyVar \mapsto \type']\type}{\bullet}{\bullet}{\highlight{\bullet}}{K}}
             \\[5mm]
 
   \inferrule*[right=Abstraction]
-             {\infTermTrans{\imEnv}{\tyEnv,\tmVar:\tyVar}{\term}{\type}{\eqCts}{\imCts}{\term'}}
-             {\infTermTrans{\imEnv}{\tyEnv}{\lambda \tmVar . \term}{\tyVar \rightarrow \type}{\eqCts}{\imCts}{\term'}}
+             {\tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv,\tmVar:\tyVar}{\term}{\type}{\eqCts}{\imCts}{\highlight{Cls}}{\term'}}
+             {\tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\lambda \tmVar . \term}{\tyVar \rightarrow \type}{\eqCts}{\imCts}{\highlight{Cls}}{\term'}}
 
 \\[5mm]
   
   \inferrule*[right=Application]
   {
-  \infTermTrans{\imEnv}{\tyEnv}{\term_1}{\type_1}{\eqCts_1}{\imCts_1}{\term_1'} \\
-  \infTermTrans{\imEnv}{\tyEnv}{\term_2}{\type_2}{\eqCts_2}{\imCts_2}{\term_2'}
+  \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term_1}{\type_1}{\eqCts_1}{\imCts_1}{\highlight{Cls_1}}{\term_1'} \\
+  \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term_2}{\type_2}{\eqCts_2}{\imCts_2}{\highlight{Cls_2}}{\term_2'}
   \\ fresh\;j
   }
-  { \infTermTrans{\imEnv}{\tyEnv}{\term_1 \term_2}{\tyVar}{\eqCts_1 + \eqCts_2 + (\type_1 \sim b \rightarrow a)}{\imCts_1 +\imCts_2 + \namedImRes{\imEnv}{j}{\type_2}{b}}{\term_1'(j \; \term_2')} }
+  { \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term_1 \term_2}{\tyVar}{\eqCts_1 + \eqCts_2 + (\type_1 \sim b \rightarrow a)}{\imCts_1 +\imCts_2 + \namedImRes{\imEnv}{j}{\type_2}{b}}{\highlight{Cls_1+Cls_2}}{\term_1'(j \; \term_2')} }
   
   \\[5mm]
   
   \inferrule*[right=Case]
              {(K : \forall a . \overline{\type} \rightarrow T \;a)\in \tyEnv
                \\
-               \infTermTrans{\imEnv}{\tyEnv}{e_1}{\type_1}{E_1}{Y_1}{e_1'}
+               \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{e_1}{\type_1}{E_1}{Y_1}{\highlight{Cls_1}}{e_1'}
                \\
-               \infTermTrans{\imEnv}{\tyEnv,\overline{\tmVar}:[a\mapsto b]\overline{\type}}{e_2}{\type_2}{E_2}{Y_2}{e_2'}
+               \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv,\overline{\tmVar}:[a\mapsto b]\overline{\type}}{e_2}{\type_2}{E_2}{Y_2}{\highlight{Cls_2}}{e_2'}
                \\
                fresh\;j
              }
-             {\infTermTrans{\imEnv}{\tyEnv}{case\;e_1\;of\;(K\;x)\rightarrow e_2}{\type_2}{E_1+E_2}{Y_1+Y_2+\namedImRes{\imEnv}{j}{\type_1}{T\;b}}{case\;(j\;e_1')\;of\;(K\;\tmVar)\rightarrow e_2'}}
-
+             {\tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{case\;e_1\;of\;(K\;x)\rightarrow e_2}{\type_2}{E_1+E_2}{Y_1+Y_2+\namedImRes{\imEnv}{j}{\type_1}{T\;b}}{\highlight{Cls_1+Cls_2}}{case\;(j\;e_1')\;of\;(K\;\tmVar)\rightarrow e_2'}}
+\\[5mm]
+  
+  \inferrule*[right=Let]
+  {
+  \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term_1}{\type_1}{\eqCts_1}{\imCts_1}{\highlight{Cls_1}}{\term_1'} \\
+  \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term_2}{\type_2}{\eqCts_2}{\imCts_2}{\highlight{Cls_2}}{\term_2'}
+  }
+  { \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{let\,\tmVar=\term_1\,in\,\term_2}{\tyVar}{\eqCts_1 + \eqCts_2}{\imCts_1 +\imCts_2}{\highlight{Cls_1+Cls_2}}{let\,\tmVar=\term_1'\,in\,\term_2'} }
+  \\[5mm]
+  
+  \inferrule*[right=LocImp]
+  {
+  \elabTerm{\thEnv}{\bullet}{\tyEnv,\overline{\tyVar},\overline{j_i :\type_{\sim_{i}}}}{\term_1}{\type_{\sim}}{\term_1'} \\
+  \tyInfTyCls{\highlight{\thEnv}}{\imEnv,i}{\tyEnv}{\term_2}{\type}{\eqCts}{\imCts}{\highlight{Cls}}{\term_2'}
+  }
+  { \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{(\iLocal{i}{\forall \overline{\tyVar}.\overline{j_i :\type_{\sim_{i}}}\Rightarrow\type_{\sim}}{\term_1}{\term_2})}{\type}{\eqCts}{\imCts}{\highlight{Cls}}{\term_2'} }
+  
 \end{array}
 \]
 
@@ -320,7 +337,7 @@
 \[
   \inferrule*[right=Aux]
              {
-               \imResiSubs{\bullet}{\imEnv}{j}{\type_1}{\type_2}{\varphi}{\Theta}
+               \imResiSubs{\type}{\imEnv}{j}{\type_1}{\type_2}{\varphi}{\Theta}
              }
              {
                \imResSubs{\imEnv}{j}{\type_1}{\type_2}{\varphi}
@@ -352,12 +369,12 @@
     \\
     \type_3 \notin \overline{\type}
     \\
-    \forall\; cond_i \in [\overline{a} \mapsto \overline{\type_a}]Cond\;:\;(\imResSubs{\imEnv}{cond_i}{\type_{i1}}{\type_{i2}}{\Theta_i}{\varphi_i})
+    \forall\; cond_i \in [\overline{a} \mapsto \overline{\type_a}]Cond\;:\;(\imResiSubs{\overline{\type_i},\type_1}{\imEnv}{cond_i}{\type_{i1}}{\type_{i2}}{\Theta_i}{\varphi_i})
     \\
-    \imResiSubs{\overline{\type},\type_1}{\imEnv}{conv_{rest}}{(\overline{\varphi_i}\;\type_3)}{\type_2}{\Theta_{rest}}{\varphi_{rest}}
+    \imResiSubs{\overline{\type},\type_1}{\imEnv}{conv_{rest}}{(\overline{\Theta_i}\;\type_3)}{\type_2}{\Theta_{rest}}{\varphi_{rest}}
   }
-{ \imResiSubs{\overline{\type}}{\imEnv}{conv}{\type_1}{\type_2}{[conv \mapsto (\Theta_{rest}\;conv_{rest}) \circ (\overline{\Theta_i}\; ([\overline{a} \mapsto \overline{\type_a}]expr_{fst}))]}{\varphi_{rest} \circ \overline{\varphi_i} \circ [\overline{\tyVar}\mapsto \overline{\type_a}]}}
-% { \imResiSubs{\overline{\type}}{\imEnv}{conv}{\type_1}{\type_2}{[conv \mapsto (\Theta_{rest}\;conv_{rest}) \circ (conv_{fst}\;\type_a\; \overline{\Theta_i\;cond_i} ))]}}
+{ \imResiSubs{\overline{\type}}{\imEnv}{conv}{\type_1}{\type_2}{[conv \mapsto (\varphi_{rest}\;conv_{rest}) \circ (\overline{\varphi_i}\; ([\overline{a} \mapsto \overline{\type_a}]expr_{fst}))]}{\Theta_{rest} \circ \overline{\Theta_i} \; [\overline{\tyVar}\mapsto \overline{\type_a}]}}
+% { \imResiSubs{\overline{\type}}{\imEnv}{conv}{\type_1}{\type_2}{[conv \mapsto (\varphi_{rest}\;conv_{rest}) \circ (conv_{fst}\;\type_a\; \overline{\varphi_i\;cond_i} ))]}}
 
   \end{array}
 \]  
