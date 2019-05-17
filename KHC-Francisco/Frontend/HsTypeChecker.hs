@@ -92,14 +92,13 @@ addTyConInfoTcM tc info = modify $ \s ->
 -- * Type Checking Monad
 -- ------------------------------------------------------------------------------
 
-type TcM = UniqueSupplyT (ReaderT (TcCtx,(ImplicitTheory,FullTheory)) (StateT TcEnv (ExceptT String (Writer Trace))))
+type TcM = UniqueSupplyT (ReaderT ((TcCtx,RnMonoTy),(ImplicitTheory,FullTheory)) (StateT TcEnv (ExceptT String (Writer Trace))))
 
 type TcCtx = Ctx RnTmVar RnPolyTy RnTyVar Kind
 
 data TcEnv = TcEnv { tc_env_cls_info :: AssocList RnClass   ClassInfo
                    , tc_env_dc_info  :: AssocList RnDataCon HsDataConInfo
                    , tc_env_tc_info  :: AssocList RnTyCon   HsTyConInfo
-                   --, tc_env_iconvs   :: AssocList (RnMonoTy,RnMonoTy)  RnTerm
                    }
 
 instance PrettyPrint TcEnv where
@@ -108,7 +107,6 @@ instance PrettyPrint TcEnv where
     [ text "tc_env_cls_info" <+> colon <+> ppr cls_infos
     , text "tc_env_dc_info"  <+> colon <+> ppr dc_infos
     , text "tc_env_tc_info"  <+> colon <+> ppr tc_infos
-    --, text "tc_env_iconvs"  <+> colon <+> ppr iconvs
     ]
   needsParens _ = False
 
@@ -148,8 +146,8 @@ buildInitFcAssocs = do
 -- ------------------------------------------------------------------------------
 
 -- | Ensure something is not already bound in the local context
-notInTcCtxM :: (PrettyPrint a, MonadReader (ctx,i) m, MonadError String m) => (ctx -> a -> Maybe t) -> a -> m ()
-notInTcCtxM f x = ask >>= \(ctx,i) -> case f ctx x of
+notInTcCtxM :: (PrettyPrint a, MonadReader ((ctx,ty),i) m, MonadError String m) => (ctx -> a -> Maybe t) -> a -> m ()
+notInTcCtxM f x = ask >>= \((ctx,_),_) -> case f ctx x of
   Just {} -> throwErrorM (text "notInTcCtxM" <+> colon <+> ppr x <+> text "is already bound")
   Nothing -> return ()
 
@@ -310,7 +308,7 @@ elabCtr (Ctr (a:as) cs  ct) = FcTyAbs (rnTyVarToFcTyVar (labelOf a)) <$> elabCtr
 
 newtype SolveM a = SolveM (ListT TcM a)
   deriving ( Functor, Applicative, Monad
-           , MonadState TcEnv, MonadReader (TcCtx,(ImplicitTheory,FullTheory)), MonadError String )
+           , MonadState TcEnv, MonadReader ((TcCtx,RnMonoTy),(ImplicitTheory,FullTheory)), MonadError String )
 
 instance MonadUnique SolveM where
   getUniqueSupplyM = liftSolveM getUniqueSupplyM
@@ -340,7 +338,7 @@ instance Monoid ConstraintStore where
 -- | Type inference generation monad
 newtype GenM a = GenM (StateT ConstraintStore TcM a)
   deriving ( Functor, Applicative, Monad
-           , MonadState ConstraintStore, MonadReader (TcCtx,(ImplicitTheory,FullTheory)), MonadError String )
+           , MonadState ConstraintStore, MonadReader ((TcCtx,RnMonoTy),(ImplicitTheory,FullTheory)), MonadError String )
 
 -- GEORGE: All this is bad. We should not store the unique supply within the
 -- global environment, rather wrap our monads with the UniqueSupplyT transformer
@@ -374,13 +372,13 @@ storeRntv :: [RnTyVar] -> GenM ()
 storeRntv rn = modify (\(CS eqs ycs ccs rntv) -> CS eqs ycs ccs (mappend rntv rn))
 
 -- | Add many type variables to the typing context
-extendTcCtxTysM :: MonadReader (TcCtx,(ImplicitTheory,FullTheory)) m => [RnTyVar] -> m a -> m a
+extendTcCtxTysM :: MonadReader ((TcCtx,RnMonoTy),(ImplicitTheory,FullTheory)) m => [RnTyVar] -> m a -> m a
 extendTcCtxTysM []     m = m
 extendTcCtxTysM (a:as) m = extendCtxTyN a (kindOf a) (extendTcCtxTysM as m) -- just a left fold..
 
 -- | Set the typing environment
-setTcCtxTmM :: MonadReader (TcCtx,(ImplicitTheory,FullTheory)) m => TcCtx -> m a -> m a
-setTcCtxTmM ctx = local (\(_,i) -> (ctx,i))
+setTcCtxTmM :: MonadReader ((TcCtx,RnMonoTy),(ImplicitTheory,FullTheory)) m => TcCtx -> m a -> m a
+setTcCtxTmM ctx = local (\((_,ty),i) -> ((ctx,ty),i))
 
 -- * Term Elaboration
 -- ------------------------------------------------------------------------------
@@ -615,16 +613,23 @@ occursCheck a (TyVar b)       = a /= b
 
 -- * NEW CODE FOR SOLVING IMPLICIT CONSTRAINTS
 -- | Completely entail the set of Implicit constraints. This allows to try several orders in which to solve the set.
+
+--Cheap solveY because bypasses f. For solving conversions with conditions. Ugly and a TODO.
+csolveY :: YCs -> TcM (FcTmSubst,HsTySubst)
+csolveY ycs = do
+  (fctmsubst,tysubst2) <- auxSolveY []  ycs
+  return (fctmsubst,tysubst2)
+  `catchError` (\s-> throwError (s++" :csolveY"))
+
 solveY :: YCs -> TcM (FcTmSubst,HsTySubst)
 solveY ycs = do
   tysubst1 <- f ycs
-  (fctmsubst,tysubst2) <- auxSolveY [] (trace ("YCS to solve: "++(render$ppr (substInYCs mempty tysubst1 ycs))) (substInYCs mempty (trace ("after f! "++(render$ppr tysubst1)) tysubst1) ycs))
+  (fctmsubst,tysubst2) <- auxSolveY []  (substInYCs mempty  tysubst1 ycs)
   return (fctmsubst,tysubst1<>tysubst2)
   `catchError` (\s-> throwError (s++" :solveY"))
-  
- where
-   auxSolveY untch ycs = entailYcs [] ycs
 
+auxSolveY untch ycs = entailYcs [] ycs
+     where
    -- | Completely entail a set of conversion constraints. Failed if not possible
    entailYcs :: [RnTyVar] -> YCs -> TcM (FcTmSubst,HsTySubst)
    entailYcs _ SN = return mempty
@@ -636,42 +641,42 @@ solveY ycs = do
     
    entailYct :: [RnTyVar] -> YCs -> TcM (FcTmSubst,HsTySubst)
    entailYct untch yct = do
-        x <- runSolverFirstM (go yct)
+        x <- runSolverFirstM (go [] yct)
         return  x
      where
-       go (cs :> c) = do
-         (ycs,subst1,ty_subst1) <- rightEntailsBacktracQ untch c
+       go beens (cs :> c) = do
+         (ycs,subst1,ty_subst1,nbeens) <- rightEntailsBacktracQ beens c
          case ycs of
            SN -> return (subst1,ty_subst1)
            otherwise -> do
-            (subst2,ty_subst2) <- go  ycs
+            (subst2,ty_subst2) <- go nbeens ycs
             return (subst2 <> subst1,ty_subst2 <> ty_subst1)
 
-   rightEntailsBacktracQ :: [RnTyVar] -> YCt
-                         -> SolveM (YCs,FcTmSubst,HsTySubst)
-   rightEntailsBacktracQ untch yct@(YCt _ _ _ it) = 
+   rightEntailsBacktracQ :: [RnMonoTy] -> YCt
+                         -> SolveM (YCs,FcTmSubst,HsTySubst,[RnMonoTy])
+   rightEntailsBacktracQ beens yct@(YCt _ _ _ it) = 
      liftSolveM (snocListChooseM (it:>CV_Nil) left_entail) >>= SolveM . selectListT
      where
-       left_entail conv_axiom = leftEntailsIConv untch conv_axiom yct
+       left_entail conv_axiom = leftEntailsIConv beens conv_axiom yct --TODO!
 
-   leftEntailsIConv :: [RnTyVar] -> ConvAxiom -> YCt
-               -> TcM (Maybe (YCs, FcTmSubst,HsTySubst))
-   leftEntailsIConv untch CV_Nil (YCt j (MCT ty1 ty2) exp _)
+   leftEntailsIConv :: [RnMonoTy] -> ConvAxiom -> YCt
+               -> TcM (Maybe (YCs, FcTmSubst,HsTySubst,[RnMonoTy]))
+   leftEntailsIConv beens CV_Nil (YCt j (MCT ty1 ty2) exp _)
      | Right ty_subst <- unify [] [ty1 :~: ty2] = do
-                 return $ Just (SN, j |-> exp,ty_subst)
+                 return $ Just (SN, j |-> exp,ty_subst,beens)
      | otherwise = return Nothing              
-   leftEntailsIConv untch (MCA (MCT a b) exp) (YCt j (MCT ty1 ty2) tm it)
+   leftEntailsIConv beens (MCA (MCT a b) exp) (YCt j (MCT ty1 ty2) tm it)
+     | elem b beens = return Nothing
      | Right ty_subst <- unify [] [ty1 :~: a]  = do
        b' <- elabMonoTy b
        ty2' <- elabMonoTy ty2
        let yct = case tm of
              FcDummyTerm -> substInYCt mempty ty_subst (YCt j (MCT b ty2) exp it)
              otherwise  -> substInYCt mempty ty_subst (YCt j (MCT b ty2) (FcTmApp exp tm) it)
-
-       return $ Just (singletonSnocList yct , mempty,ty_subst)
+       return $ Just (singletonSnocList yct , mempty,ty_subst,b:beens)
      | otherwise  = return Nothing
    -- If the conversion has type vars in the resulting type, we unify it with the end type ty2. Fail if not possible.    
-   leftEntailsIConv untch ca@(PCA (PCT vars pairs (MCT a b)) exp) yct@(YCt j (MCT ty1 ty2) tm it)
+   leftEntailsIConv beens ca@(PCA (PCT vars pairs (MCT a b)) exp) yct@(YCt j (MCT ty1 ty2) tm it)
      | Right _ <- unify [] [ty1 :~: a]  = do
        --trace ("B> "++(render$ppr b)) (return ())
        (ca'@(PCA (PCT vars' pairs' (MCT a' b')) exp'),f_sub) <- case (ftyvsOf b) of
@@ -679,7 +684,6 @@ solveY ycs = do
          otherwise -> 
            case (do {unify [] [ty2 :~: b]}) of
              Right uniB -> do
-               --trace "Unifying b and ty2!> " (return ())
                fc_uniB <- elabHsTySubst uniB
                let ca_u = (PCA (PCT vars (substInConds uniB pairs) (MCT a ty2)) (substFcTyInTm fc_uniB exp))
                (exp,sub)<-freshenCA ca_u
@@ -689,12 +693,14 @@ solveY ycs = do
        fc_ty_subst <- elabHsTySubst ty_subst
        ycs <- prepare (PCA (PCT vars' (substInConds ty_subst pairs') (MCT ty1 b')) (substFcTyInTm fc_ty_subst exp)) (xcludeSelf ca it)
        trace ("b'> "++(render$ppr b')) (return ())
-       (tm_subst,ty_subst2) <- auxSolveY untch ycs
+       (tm_subst,ty_subst2) <- auxSolveY [] ycs
        let nb = (substInMonoTy (ty_subst2 <> ty_subst <> f_sub) b)
        let yct = case tm of
              FcDummyTerm -> substInYCt mempty ty_subst (YCt j (MCT nb ty2) (substFcTmInTm tm_subst exp') it)
              otherwise   -> substInYCt mempty ty_subst (YCt j (MCT nb ty2) (FcTmApp (substFcTmInTm tm_subst exp') tm) it)
-       return $ Just (singletonSnocList  yct , mempty , ty_subst2 <> ty_subst <> f_sub)
+       return $ case elem nb beens of
+         True  -> Nothing
+         False -> Just (singletonSnocList  yct , mempty , ty_subst2 <> ty_subst <> f_sub,nb:beens)
        `catchError` (\s-> return Nothing)
      | otherwise  = return Nothing
      where
@@ -728,37 +734,40 @@ f :: YCs -> TcM(HsTySubst)
 f ycs = let subst1 = (step1 ycs ycs) in
   do
     subst2 <- step2 (substInYCs mempty subst1 ycs)
+    let nycs = (substInYCs mempty (subst2<>subst1) ycs)
+    --trace ("CSDGW"++(render$ppr nycs)) (return ())
+    checkAmbiguity nycs
     return (subst1 <> subst2)
+     where
+  -- | propagates type to vars with only one incomming edge
 
--- | propagates type to vars with only one incomming edge
+  step1 :: YCs -> YCs-> HsTySubst
+  step1 (rest:>conv@(YCt _ (MCT a (TyVar b)) _ _)) all
+   | one_incomming (TyVar b) all 0 = (b |-> a) <> (step1 (substInYCs mempty (b |-> a) rest) (substInYCs mempty (b |-> a) all))
+   | otherwise      = (step1 rest all)
+   where one_incomming b SN 1 = True
+         one_incomming b SN _ = False
+         one_incomming b (xs:>x@(YCt _ (MCT _ c) _ _)) i = if c == b then (one_incomming b xs (i+1)) else one_incomming b xs i
+  step1 (rest:>conv) all = (step1 rest all)
+  step1 SN _ = mempty
 
-step1 :: YCs -> YCs-> HsTySubst
-step1 (rest:>conv@(YCt _ (MCT a (TyVar b)) _ _)) all
- | one_incomming (TyVar b) all 0 = (b |-> a) <> (step1 (substInYCs mempty (b |-> a) rest) (substInYCs mempty (b |-> a) all))
- | otherwise      = (step1 rest all)
- where one_incomming b SN 1 = True
-       one_incomming b SN _ = False
-       one_incomming b (xs:>x@(YCt _ (MCT _ c) _ _)) i = if c == b then (one_incomming b xs (i+1)) else one_incomming b xs i
-step1 (rest:>conv) all = (step1 rest all)
-step1 SN _ = mempty
-
--- | look for a common type where they can meet
-step2 :: YCs -> TcM(HsTySubst)
-step2 ycs = aux2 ycs
- where
-  aux2 :: YCs -> TcM(HsTySubst)
-  aux2 SN = return mempty
-  aux2 (rest:>conv@(YCt _ (MCT a b) _ it))  = case b of
-      (TyVar x) -> let source = incomming b ycs in do
-        rh <- (reachable (head source) it)
-        rr <- (mapM (\x-> reachable x it) (tail source))
-        let meet = (foldr intersect  rh rr) in
-          do
-            dom <- dominator (trace ("SOURCE> "++(render$ppr source)) source) (trace ("MEET> "++(render$ppr meet)) meet) (trace ("IT> "++(show it)) it)
-            return (x |-> trace (render$ppr dom) dom)
-      otherwise -> do
-        subst <- aux2 rest
-        return subst
+  -- | look for a common type where they can meet
+  step2 :: YCs -> TcM(HsTySubst)
+  step2 ycs = aux2 ycs
+   where
+    aux2 :: YCs -> TcM(HsTySubst)
+    aux2 SN = return mempty
+    aux2 (rest:>conv@(YCt _ (MCT a b) _ it))  = case b of
+        (TyVar x) -> let source = incomming b ycs in do
+          rh <- (reachable (head source) it)
+          rr <- (mapM (\x-> reachable x it) (tail source))
+          let meet = (foldr intersect  rh rr) in
+            do
+              dom <- dominator (trace ("SOURCE> "++(render$ppr source)) source) (trace ("MEET> "++(render$ppr meet)) meet) (trace ("IT> "++(show it)) it)
+              return (x |-> trace (render$ppr dom) dom)
+        otherwise -> do
+          subst <- aux2 rest
+          return subst
 
         
   -- | looking for the types reachable from `init`
@@ -774,6 +783,7 @@ step2 ycs = aux2 ycs
          aux acc (at:rest) SN = aux (at:acc) rest it
          aux acc [] _ = return acc
 
+--TODO! Possibility of b being type var...
   onestep :: [RnMonoTy]->RnMonoTy->ConvAxiom->ImplicitTheory -> TcM (Maybe RnMonoTy)
   onestep old at (MCA (MCT a b) exp) _
    | Right ty_subst <- unify [] [at :~: a] =
@@ -782,15 +792,16 @@ step2 ycs = aux2 ycs
    | Left _         <- unify [] [at :~: a] = return Nothing
   onestep old at ca@(PCA pct@(PCT vars pairs mono@(MCT a b)) exp) it 
     | Right ty_subst <-  unify [] [at :~: a] = do
-        isSat <- (sat ca it)
+        isSat <- (sat ca it ty_subst)
         if ((substInMonoTy ty_subst b) `elem` old) && isSat then return Nothing else return$Just (substInMonoTy ty_subst b)
     | otherwise = return Nothing   
 
   --TODO! Think its done somewhere else
-  sat :: ConvAxiom -> ImplicitTheory -> TcM Bool
-  sat ca it = do
+  sat :: ConvAxiom -> ImplicitTheory -> HsTySubst -> TcM Bool
+  sat ca it sub = do
           ycs <- prepare ca it
-          _ <- solveY ycs
+          let nycs = substInYCs mempty sub ycs
+          _ <- csolveY nycs
           return True
           `catchError` (\s -> return False)
  
@@ -819,23 +830,42 @@ step2 ycs = aux2 ycs
   
   mustsTo :: [RnMonoTy] -> RnMonoTy -> ImplicitTheory -> TcM [RnMonoTy]
   mustsTo sources@(x:xs) to it = do
-    h <- (aux [] [[x]] it)
-    othersources <- (mapM (\init-> (aux [] [[init]] it)) sources)
-    return$foldr intersect h othersources 
-      where 
-         aux :: [[RnMonoTy]]->[[RnMonoTy]]->ImplicitTheory-> TcM [RnMonoTy]
-         aux done_paths paths@(this@(at:rest):otherpaths) (xs:>x) = do
-           os <- (onestep this (trace ("@"++(render$ppr at)) at) x it)
-           case (trace ("TO> "++(render$ppr os)) os) of 
-             Just ty -> if (ty == (trace ("TO> "++(render$ppr to)) to)) then aux ((ty:this):done_paths) (this:otherpaths) xs else aux done_paths (this:(ty:this):otherpaths) xs
-             Nothing -> aux done_paths paths xs
-         aux done_paths paths@(this@(at:rest):otherpaths) SN = aux done_paths otherpaths it
-         aux done_paths [] _ = case done_paths of
-           []   -> return []
-           [[]] -> return []
-           [el] -> return el
-           (fst:rest) -> return $ foldr intersect fst rest
-  
+    h <- (pathsFromTo [] [[x]] to it it)
+    othersources <- (mapM (\init-> (pathsFromTo [] [[init]] to it it)) xs)
+    let h' = case h of
+          []   ->  []
+          --[[]] ->  []
+          [el] ->  el
+          (fst:rest) -> foldr intersect fst rest
+    let o' = case othersources of
+          []   ->  []
+          --[[]] ->  []
+          [el] ->  el
+          (fst:rest) -> foldr intersect fst rest
+    return$foldr intersect h' o' 
+
+
+  pathsFromTo :: [[RnMonoTy]]->[[RnMonoTy]]-> RnMonoTy ->ImplicitTheory-> ImplicitTheory -> TcM [[RnMonoTy]]
+  pathsFromTo done_paths paths@(this@(at:rest):otherpaths) to (xs:>x) it = do
+    os <- (onestep this (trace ("@"++(render$ppr at)) at) x it)
+    case (trace ("TO> "++(render$ppr os)) os) of 
+      Just ty -> if (ty == (trace ("TO> "++(render$ppr to)) to)) then pathsFromTo ((ty:this):done_paths) (this:otherpaths) to xs it else pathsFromTo done_paths (this:(ty:this):otherpaths) to xs it
+      Nothing -> pathsFromTo done_paths paths to xs it
+  pathsFromTo done_paths paths@(this@(at:rest):otherpaths) to SN it = pathsFromTo done_paths otherpaths to it it
+  pathsFromTo done_paths [] _ _ _= return done_paths 
+
+  checkAmbiguity :: YCs -> TcM ()
+  checkAmbiguity ycs@(rest:>conv@(YCt _ (MCT (TyVar a) b) _  it)) = throwError "Ambiguous program: unable to decide the type of the conversions needed."
+  checkAmbiguity ycs@(rest:>conv@(YCt _ (MCT c (TyVar a)) _  it)) = throwError "Ambiguous program: unable to decide the type of the conversions needed."
+  checkAmbiguity ycs@(rest:>conv@(YCt _ (MCT a c) _  it))= do
+          paths <- pathsFromTo [] [[a]] c it it
+          case paths of
+            []   ->  if a==c then checkAmbiguity rest else throwError ("no path from "++(render$ppr a)++" to "++(render$ppr c))
+            --[[]] ->  throwError "2"
+            [el] ->  checkAmbiguity rest --return ()
+            (fst:rest) -> throwError ("ambiguous conversions from "++(render$ppr a)++" to "++(render$ppr c))
+  checkAmbiguity SN = return ()
+
 -- * Overlap Checking
 -- ------------------------------------------------------------------------------
 
@@ -962,7 +992,7 @@ elabClsDecl (ClsD rn_cs cls (a :| _) method method_ty) = do
   (fc_val_bind, hs_method_ty) <- elabMethodSig method a cls method_ty
 
   -- Construct the extended typing environment
-  (ty_ctx,_) <- extendTC method hs_method_ty ask
+  ((ty_ctx,_),_) <- extendTC method hs_method_ty ask
 
   (sc_schemes, sc_decls) <- fmap unzip $ forM (zip [0..] rn_cs) $ \(i,sc_ct) -> do
     d  <- freshDictVar -- For the declaration
@@ -1048,7 +1078,7 @@ elabDataDecl (DataD tc as dcs) = do
   return (FcDataDecl fc_tc fc_as fc_dcs)
 
 -- | Extend the typing environment with some kind annotated type variables
-extendCtxKindAnnotatedTysM :: (MonadReader ((Ctx x x' a Kind),c) m, Kinded a, MonadError String m) => [Ann a t] -> m b -> m b
+extendCtxKindAnnotatedTysM :: (MonadReader (((Ctx x x' a Kind),d),c) m, Kinded a, MonadError String m) => [Ann a t] -> m b -> m b
 extendCtxKindAnnotatedTysM ann_as = extendCtxTysN as (map kindOf as)
   where
     as = map labelOf ann_as
@@ -1163,7 +1193,7 @@ elabTermWithSig untch theory tm poly_ty = do
 
     -- NEW: YCs
   let refined_wanted_ics = substInYCs mempty ty_subst wanted_ics                       -- refine the wanted implicit conversion constraints
-  (subst_place_holding_vars,ty_subst2) <- solveY refined_wanted_ics
+  (subst_place_holding_vars,ty_subst2) <- csolveY refined_wanted_ics
     -- End NEW
 
   ev_subst <- do
@@ -1225,78 +1255,75 @@ elabIConvDecl (IConvD i@(ICC name pct@(PCT vars pairs monoty@(MCT a b)) exp)) = 
        aux :: [(RnTmVar,RnMonoConvTy)] -> ([RnTmVar],[RnPolyTy])
        aux pairs = (map fst pairs, map (\(MCT a b) -> monoTyToPolyTy (mkRnArrowTy [a] b)) (map snd pairs))
 
-extendIT :: MonadReader (TcCtx,(ImplicitTheory,FullTheory)) m => ConvAxiom -> m b -> m b
+extendIT :: MonadReader ((TcCtx,RnMonoTy),(ImplicitTheory,FullTheory)) m => ConvAxiom -> m b -> m b
 extendIT ca = local (\(x,(iCtx,ft)) -> (x,((iCtx:>ca),ft)))
-extendTC :: MonadReader (TcCtx,c) m => RnTmVar-> RnPolyTy -> m b -> m b
-extendTC a b = local (\(tcCtx,i) -> (extendCtxTm tcCtx a b,i))
+extendTC :: MonadReader ((TcCtx,d),c) m => RnTmVar-> RnPolyTy -> m b -> m b
+extendTC a b = local (\((tcCtx,ty),i) -> ((extendCtxTm tcCtx a b,ty),i))
 
-extendSuper :: MonadReader (TcCtx,(ImplicitTheory,FullTheory)) m => ProgramTheory -> m b -> m b
+extendSuper :: MonadReader ((TcCtx,RnMonoTy),(ImplicitTheory,FullTheory)) m => ProgramTheory -> m b -> m b
 extendSuper pt  = local (\(x,(iCtx,ft)) -> (x,(iCtx,ft `ftExtendSuper` pt)))
 
-emptyIT :: MonadReader (TcCtx,(ImplicitTheory,FullTheory)) m => m b -> m b
+emptyIT :: MonadReader ((TcCtx,RnMonoTy),(ImplicitTheory,FullTheory)) m => m b -> m b
 emptyIT = local (\(x,(iCtx,ft)) -> (x,(SN,ft)))
 
-setFT :: MonadReader (TcCtx,(ImplicitTheory,FullTheory)) m => FullTheory -> m b -> m b
+setFT :: MonadReader ((TcCtx,RnMonoTy),(ImplicitTheory,FullTheory)) m => FullTheory -> m b -> m b
 setFT ft  = local (\(x,(iCtx,_)) -> (x,(iCtx,ft)))          
 
 -- | Add many type variables to the context
-extendTCs :: (MonadReader (TcCtx,(ImplicitTheory,FullTheory)) m, MonadError String m) => [RnTmVar] -> [RnPolyTy] -> m b -> m b
+extendTCs :: (MonadReader ((TcCtx,RnMonoTy),(ImplicitTheory,FullTheory)) m, MonadError String m) => [RnTmVar] -> [RnPolyTy] -> m b -> m b
 extendTCs []     []     m = m
 extendTCs (a:as) (b:bs) m = extendTC a b (extendTCs as bs m)
 extendTCs _      _      _ = throwErrorM (text "extendTCs" <+> colon <+> text "length mismatch")
 -- * Type Inference With Constraint Simplification
 -- ------------------------------------------------------------------------------
 -- UPDATED
-elabTermSimpl :: ProgramTheory -> RnTerm -> TcM (RnPolyTy, FcTerm) -- UPDATED
+elabTermSimpl :: ProgramTheory -> RnTerm -> TcM (RnMonoTy, FcTerm) -- UPDATED
 elabTermSimpl theory tm = do
   -- Infer the type of the expression and the wanted constraints
   ((mono_ty, fc_tm), wanted_eqs, wanted_ics, wanted_ccs) <- runGenM $ elabTerm tm
 
   -- Simplify as much as you can
-  ty_subst <- unify mempty $ (trace ("EQs: "++(render$ppr wanted_eqs)) wanted_eqs) -- Solve the needed equalities first
+  pair <- ask
+  let given_ty = snd$fst pair
+  let nwanted_eqs = (given_ty:~:mono_ty):wanted_eqs
+  ty_subst <- unify mempty $ (trace ("EQs: "++(render$ppr nwanted_eqs)) nwanted_eqs)  -- Solve the needed equalities first
 
   let refined_wanted_ics = substInYCs mempty ty_subst wanted_ics                      -- refine the wanted implicit conversion constraints
-  let refined_mono_ty    = substInMonoTy (trace ("TySUBST from EQ: "++(render$ppr ty_subst)) ty_subst) mono_ty          -- refine the monotype
+  let refined_mono_ty    = substInMonoTy ty_subst mono_ty                             -- refine the monotype
 
 
   -- NEW: YCs
   (subst_place_holding_vars, ty_subst2) <- solveY (trace ("refined ICs: "++(render$ppr refined_wanted_ics)) refined_wanted_ics)
-  let refined_wanted_ccs = substInSimpleProgramTheory  ((trace ("TySUBST from YCs: "++(render$ppr ty_subst2)) ty_subst2) <> ty_subst)  wanted_ccs       -- refine the wanted class constraints
+  let refined_wanted_ccs = substInSimpleProgramTheory  (ty_subst2 <> ty_subst)  wanted_ccs       -- refine the wanted class constraints
   -- End NEW
   
   let fc_tm_after_Y = substFcTmInTm subst_place_holding_vars  fc_tm
   refined_fc_tm <- elabHsTySubst  (trace ("TySUBST from YCs: "++(render$ppr ty_subst2)) (ty_subst<>ty_subst2))  >>= return . flip substFcTyInTm fc_tm_after_Y -- refine the term
   let untouchables = nub (ftyvsOf refined_mono_ty)
 
-  (residual_cs, ev_subst) <- entailDetTcM untouchables theory (trace ("SimplREFINED: "++(render$ppr refined_wanted_ccs)) refined_wanted_ccs)
-  -- (residual_cs, ev_subst) <- rightEntailsRec untouchables theory refined_wanted_ccs
-  -- GEORGE: Define and use constraint simplification here
-
--- entailDetTcM :: [RnTyVar] -> ProgramTheory -> ProgramTheory -> TcM (ProgramTheory, FcTmSubst)
-
-  -- Generalize the type
+  ev_subst <- entailTcM untouchables theory refined_wanted_ccs -- Francisco: No unresolved type classes.
   let new_mono_ty = refined_mono_ty
-  let new_cs      = map dropLabel (snocListToList residual_cs) -- refined_wanted_ccs) -- residual_cs)
-  let new_as      = untouchables
-  let gen_ty      = constructPolyTy (map (\a -> a :| kindOf a) new_as, new_cs, new_mono_ty)
-
   -- Elaborate the term
-  let fc_as = map rnTyVarToFcTyVar new_as
-  dbinds   <- annClsCsToTmBinds residual_cs -- refined_wanted_ccs --residual_cs
-  let full_fc_tm = fcTmTyAbs fc_as $
-                     fcTmAbs dbinds $
+  let full_fc_tm = --fcTmTyAbs fc_as $ fcTmAbs dbinds $
                        substFcTmInTm ev_subst $
                          refined_fc_tm
 
-  return (trace "DASS" (gen_ty, full_fc_tm))
+  return (new_mono_ty, full_fc_tm)
 
 -- * Program Elaboration
 -- ------------------------------------------------------------------------------
 
+
+-- | Elaborate a tprogram
+elabTProgram :: RnTProgram
+            -> TcM ( FcProgram       {- Elaborated program       -}
+                   , RnMonoTy)        {- Term type (MonoTy?)      -}
+elabTProgram (TP p t) = elabProgram p
+
 -- | Elaborate a program
 elabProgram :: RnProgram
             -> TcM ( FcProgram       {- Elaborated program       -}
-                   , RnPolyTy)        {- Term type (MonoTy?)      -}
+                   , RnMonoTy)        {- Term type (MonoTy?)      -}
 
 -- Elaborate the program expression
 elabProgram (PgmExp tm) = do
@@ -1330,23 +1357,22 @@ elabProgram (PgmData data_decl pgm) = do
 -- | Elaborate an implicit conversion declaration
 elabProgram (PgmImpl iconv_decl pgm) = do
   ca <- elabIConvDecl iconv_decl
-  (fc_pgm, ty) <- extendIT ca (elabProgram pgm)
-  --let fc_program = FcPgmValDecl fc_val_bind fc_pgm
+  (fc_pgm, ty) <- extendIT ca (elabProgram pgm)  --let fc_program = FcPgmValDecl fc_val_bind fc_pgm
   return (fc_pgm, ty)  
 
 -- * Invoke the complete type checker
 -- ------------------------------------------------------------------------------
 
-hsElaborate :: RnEnv -> UniqueSupply -> RnProgram
-            -> (Either String ((((FcProgram, RnPolyTy), (AssocList FcTyCon FcTyConInfo, AssocList FcDataCon FcDataConInfo)), UniqueSupply), TcEnv),
+hsElaborate :: RnEnv -> UniqueSupply -> RnTProgram
+            -> (Either String ((((FcProgram, RnMonoTy), (AssocList FcTyCon FcTyConInfo, AssocList FcDataCon FcDataConInfo)), UniqueSupply), TcEnv),
                 Trace)
-hsElaborate rn_gbl_env us pgm = runWriter
+hsElaborate rn_gbl_env us tpgm@(TP pgm ty) = runWriter
                               $ runExceptT
                               $ flip runStateT  tc_init_gbl_env -- Empty when you start
-                              $ flip runReaderT (tc_init_ctx,(init_implicits_theory,tc_init_theory))
+                              $ flip runReaderT ((tc_init_ctx,ty),(init_implicits_theory,tc_init_theory))
                               $ flip runUniqueSupplyT us
                               $ do { buildInitTcEnv pgm rn_gbl_env -- Create the actual global environment
-                                   ; result <- elabProgram pgm
+                                   ; result <- elabTProgram tpgm
                                    ; assocs <- buildInitFcAssocs
                                    ; return (result, assocs) }
   where

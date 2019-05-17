@@ -415,6 +415,8 @@ constructCtr (as, cs, ty) = Ctr as cs ty
 
 -- * Programs and Declarations
 -- ------------------------------------------------------------------------------
+-- | Program with type annotation
+data TProgram a = TP (Program a) (MonoTy a)
 
 -- | Program
 data Program a = PgmExp  (Term a)                 -- ^ Expression
@@ -444,6 +446,10 @@ data InsDecl a = InsD { icons :: ClsCs a        -- ^ Constraints
 data DataDecl a = DataD { dtycon    :: HsTyCon a                     -- ^ Type constructor
                         , dtyvars   :: [HsTyVarWithKind a]           -- ^ Universal type variables
                         , ddatacons :: [(HsDataCon a, [MonoTy a])] } -- ^ Data constructors
+
+-- | Parsed/renamed Tprograms
+type PsTProgram = TProgram Sym
+type RnTProgram = TProgram Name
 
 -- | Parsed/renamed programs
 type PsProgram = Program Sym

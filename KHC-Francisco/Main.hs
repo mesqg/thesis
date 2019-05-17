@@ -35,21 +35,12 @@ runTest file = do
               case fcTypeCheck envs us2 fc_pgm of
                 (Left err,_) -> throwMainError "System F typechecker" err
                 (Right ((fc_ty, _us3), _fc_env), _trace) -> do --}
-                  --putStrLn "---------------------------- Parsed Program ---------------------------"
-                  --putStrLn $ renderWithColor $ ppr ps_pgm
-                  putStrLn "---------------------------- Renamed Program ---------------------------"
-                  putStrLn $ renderWithColor $ ppr rn_pgm
-                  --putStrLn "---------------------------- Renamed Env ---------------------------"
-                  --putStrLn $ renderWithColor $ ppr rn_env
-                  --putStrLn "---------------------------- TcEnv ---------------------------"
-                  --putStrLn $ renderWithColor $ ppr _tc_env                  
-                  --putStrLn "---------------------------- Gamma ? ---------------------------"
-                  --putStrLn $ renderWithColor $ ppr envs 
+
                   putStrLn "---------------------------- Elaborated Program ---------------------------"
                   putStrLn $ renderWithColor $ ppr fc_pgm
                   putStrLn "------------------------------- Program Type ------------------------------"
                   putStrLn $ renderWithColor $ ppr tc_ty
-              --    putStrLn "------------------------------ Full Theory -----------------------------"
+              --    putStrLn "------------------------------ Program Theory -----------------------------"
               --    putStrLn $ renderWithColor $ ppr theory
 
                   putStrLn "-------------------------- System F Program Type --------------------------"

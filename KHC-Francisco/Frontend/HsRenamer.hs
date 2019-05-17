@@ -400,6 +400,14 @@ rnIConv (ICC name pct@(PCT _ psPairs _) exp) = do
   return (ICC rn_cnv rn_ty rn_exp)
   
 
+-- | Rename a Tprogram
+rnTProgram :: PsTProgram -> RnM (RnTProgram, RnCtx)
+rnTProgram (TP pgm ty) = do
+  (rn_pgm, rn_ctx)  <- rnProgram pgm
+  rn_ty  <- rnMonoTy ty
+  return (TP rn_pgm rn_ty, rn_ctx)
+
+
 -- | Rename a program
 rnProgram :: PsProgram -> RnM (RnProgram, RnCtx)
 rnProgram (PgmExp tm) = do
@@ -426,14 +434,14 @@ rnProgram (PgmImpl impl_decl pgm) = do
 -- * Invoke the complete renamer
 -- ------------------------------------------------------------------------------
 
-hsRename :: UniqueSupply -> PsProgram
-         -> (Either String (((RnProgram, RnCtx), UniqueSupply), RnEnv), Trace)
+hsRename :: UniqueSupply -> PsTProgram
+         -> (Either String (((RnTProgram, RnCtx), UniqueSupply), RnEnv), Trace)
 hsRename us pgm = runWriter
                 $ runExceptT
                 $ flip runStateT  rn_init_gbl_env
                 $ flip runReaderT rn_init_ctx
                 $ flip runUniqueSupplyT us
-                $ rnProgram pgm
+                $ rnTProgram pgm
   where
     rn_init_ctx     = mempty
     rn_init_gbl_env = RnEnv { rn_env_cls_info  = mempty

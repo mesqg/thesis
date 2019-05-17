@@ -30,13 +30,13 @@ type PsM = ReaderT SpaceConsumer (Parsec Void String)
 newtype SpaceConsumer = SC (PsM ())
 
 -- | Parse a complete program from a file
-hsParse :: FilePath -> IO (Either String PsProgram)
+hsParse :: FilePath -> IO (Either String PsTProgram)
 hsParse path = readFile path >>= \contents ->
   return $ case parse (runReaderT parser (SC sc)) path contents of
     Left err -> Left (errorBundlePretty err)
     Right p  -> Right p
   where
-    parser = sc *> pProgram <* eof
+    parser = sc *> pTProgram <* eof
 
 -- * The Lexer and Utilities
 -- ------------------------------------------------------------------------------
@@ -114,6 +114,9 @@ chainr1 p op = scan where
 
 -- * Parse Declarations and Programs
 -- ------------------------------------------------------------------------------
+-- | Parse a Tprogram
+pTProgram :: PsM PsTProgram
+pTProgram  = TP <$> pProgram <* symbol ":*:" <*> pMonoTy
 
 -- | Parse a program
 pProgram :: PsM PsProgram
