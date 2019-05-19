@@ -181,6 +181,7 @@ instance SubstVar v t x => ApplySubst (Sub v t) x where
 -- ------------------------------------------------------------------------------
 
 type HsTySubst = Sub RnTyVar RnMonoTy
+type MonoTySubst = Sub RnMonoTy RnMonoTy
 
 -- | Build a type substitution from an association list between type variables
 buildRnSubst :: [(RnTyVar, RnTyVar)] -> HsTySubst
@@ -214,6 +215,12 @@ substInClsCt subst (ClsCt cls ty) = ClsCt cls (substInMonoTy subst ty)
 substInClsCs :: HsTySubst -> RnClsCs -> RnClsCs
 substInClsCs subst = map (substInClsCt subst)
 
+substInAnnClsCs :: MonoTySubst -> AnnClsCs -> AnnClsCs
+substInAnnClsCs subst = fmap (\(d :| clsct) -> (d :| (aux subst clsct)))
+  where
+    aux :: MonoTySubst -> RnClsCt -> RnClsCt
+    aux (SCons _ mt1 mt2) (ClsCt c ty) = if ty==mt1 then (ClsCt c mt2) else (ClsCt c ty)
+
 -- | Apply a type substitution to a type variable
 substInTyVar :: HsTySubst -> RnTyVar -> RnMonoTy
 substInTyVar subst tv = substInMonoTy subst (TyVar tv)
@@ -224,7 +231,7 @@ substInTyVars subst = map (substInTyVar subst)
 
 -- | Apply a type substitution to a program theory
 substInProgramTheory :: HsTySubst -> ProgramTheory -> ProgramTheory
-substInProgramTheory subst = fmap (\(d :| ct) -> (d :| substInCtr subst ct))
+substInProgramTheory subst = fmap (\(d :| ct) -> d :| (substInCtr subst ct))
 
 -- | Apply a type substitution to a simple program theory
 substInSimpleProgramTheory :: HsTySubst -> SimpleProgramTheory -> SimpleProgramTheory

@@ -521,8 +521,8 @@ instance Eq ConvAxiom where
   (==) _ _ = False
   
 instance Show ConvAxiom where
-  show (PCA  a exp) = (show a)++" EXP: "++(render$ppr exp)
-  show (MCA a _) = show a
+  show (PCA  (PCT _ _ mct) exp) = (render$ppr mct)++" EXP: "++(render$ppr exp)
+  show (MCA a _) = render$ ppr a
   show CV_Nil    = "CV_Nil"
   
 type ImplicitTheory = SnocList ConvAxiom {-it :: SnocList ConvAxiom
