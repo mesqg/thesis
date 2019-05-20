@@ -1,0 +1,22 @@
+\chapter{Constraint Solving}
+\label{cha:6}
+Once we have collected the constraints, we move on to solving them. First we perform unification on the equality constraints, yielding a type substitution. We then apply this substitution on the conversion constraints. The conversion constraints can not be resolved sequentially (as the equality constraints are).
+
+As a quick example to showcase this, suppose we are trying to sum money in two currencies (say in CHF and in Kwanzas) with a pocket converter capable of converting any currency to EUR. In order to sum, both arguments must be of the same type. We would collect conversion constraints from CHF to some type variable $a$ and from Kwanzas also to $a$. If we were to took the conversions sequentially (keep in mind we want implicit conversions to have a minimal effect!), we would unify $a$ with CHF in the first constraint and with Kwanzas on the second and would then be unable to sum.
+
+In order to avoid this greedy (and incorrect) approach, we have developed a graph-based constraint solver.
+\section{Unification}
+As stated, the first step towards fixing the source code with the correct implicit conversions is solving, as much as possible, the equality constraints. 
+\section{Simplification}
+After applying the substitutions resulting from unification on the equality constraints to the conversion contraints, we try to substitute all remaining type variables with concrete types. Failing to do so is a symptom of the program being ambiguous, so we reject it.
+
+We first go through the constraints searching for a type variable in the right hand side of the conversion monotype. Upon finding one ($\tyVar$), we collect the left hand sides of all the constraints with that same right hand side. If all left hand sides are the same ($\type$), we substitute in all the conversion constraints $\tyVar$ by $\type$. Keep in mind this affects all the constraints in which $\tyVar$ is on the left hand side.
+
+This operation results in a simplified set of conversion constraints but representing exactly the same. Let $S$ stand for the set of monotypes $\tyVar$ needs to convert into; because our implicit convertions are transitive and reflexive, we can convert $\type$ to $\tyVar$ and $\tyVar$ to each element of $S$ if and only if we can convert $\type$ into each element of $S$.
+\section{Finding the Dominator}
+After the simplification step, we eliminate type variables to which multiple types (all of them must be concrete types) must be convertible to. Consider a set $S$ of concrete types that must be convertible to a type variable $\tyVar$.
+
+The {\it dominator} $d$ of $S$ is the concrete type such that: all types in $S$ are convertible to $d$; and, for any other type $d'$ to which all elements of $S$ can convert into, any conversion from an element of $S$ into $d'$ is the composition of a conversion from $d$ to $d'$ after a conversion from the element to $d$.
+
+We do this by again traversing the set of conversion constraints. Upon finding a type variable on the right hand side of a conversion monotype, we again collect all the corresponding left hand sides. If none is a type variable, we try to compute the dominator of the left hand sides. If no dominator exists, the program cannot be fixed in a unambiguous manner. However, if there is such a dominator, we substitute the type variable by it in all the constraints and start this process over.
+\section{Example}

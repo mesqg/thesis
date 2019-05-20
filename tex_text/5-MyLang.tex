@@ -1,0 +1,248 @@
+\chapter{MyLang}
+\label{cha:5}
+
+We now present a core language that showcases the features mentioned in the previous chapter, namely type inference and implicit conversions with support for transitivity, local scoping, constrained and polymorphic conversions.
+
+The key difference between MyLang and HM is the presence of implicit conversions. The only terms in which implicit conversions are present are $locimp$ (short for local implicit). Just like a $let$ expression extends the typing environment ($\tyEnv$) in which its second term is typed/evaluated, a $locimp$ expression extends the implicit environment ($\imEnv$) in which its second expression is typed/evaluated. The syntax for MyLang is given in \fref{mlsyntax}.
+
+\begin{figure}
+   \[
+\begin{array}{@{\hspace{0mm}}l@{\hspace{0mm}}}
+  t\_pgm ::= \type;pgm\\
+  pgm ::= data;pgm\,|\,\term\\
+  data\,::= data\;T\;\tyVar=K\;\overline{\type}
+  \\[5mm]
+  \type ::= \tyVar\,|\,\type_1\to\type_2\,|\,T\,\overline{\type}\\
+  \typeS ::= \type\,|\,\forall\tyVar.\typeS\\
+  \type_{\rightsquigarrow} ::= \type \rightsquigarrow \type\\
+  \typeS_{\rightsquigarrow} ::= \forall \overline {\tyVar} . \overline{(j : \type_{\rightsquigarrow})} \Rightarrow \type_{\rightsquigarrow}
+  \\[5mm]
+  \term ::= \tmVar \hfill terms\\
+  \phantom{\term ::}|\,\lambda \tmVar.\term\\
+  \phantom{\term ::}|\,\term_1 \; \term_2\\
+  \phantom{\term ::}|\, K\\
+  \phantom{\term ::}|\, case \, \term_1 \, of\, (K \tmVar) \rightarrow \term_2\\
+  \phantom{\term ::}|\, let \, \tmVar \, =\, \term_1 \,in\, \term_2  \\  
+  \phantom{\term ::}|\, locimp \; Impl\; in\; \term_2
+  \\[5mm]
+  Impl ::= i : \typeS_{\rightsquigarrow}=\term\\
+  \imEnv::=\overline{Impl}\\
+  \tyEnv::=\bullet\,|\,\tyEnv,\tmVar:\typeS\,|\,\tyEnv,\tyVar\,|\,\tyEnv,K:\typeS\,|\,\tyEnv,T
+
+  \end{array}
+\]
+  \caption{MyLang's syntax}
+  \label{mlsyntax}
+\end{figure}
+Implicit conversions are given a name, specify a conversion type and introduce a conversion expression that must conform to its conversion type.
+
+Conversion types is an umbrella term for conversion monotypes ($\convmono$) and conversion polytypes ($\convpoly$). Conversion monotypes are simply a pair of monotypes (as defined in HM). These represent the source and the target type of the conversion.
+A conversion Polytype specifies a set of type variables, a set of conditionals (names bound to conversion monotypes) and a final conversion monotype.
+
+An interesting feature of our implicit conversions is that an implicit conversion can only be applied if all its conditionals are satisfied. This happens if there is in scope an implicit conversion of the type specified by the conversion monotype. In that case, the names specified in the conditionals will be identified, in the converting expression introduced by the implicit conversion, with the corresponding converting expressions specified by the auxiliary conversions.
+
+\section{Typing}
+The top-level rules to type a program are standard for languages with data types, with the exception of the rule ``Type''. This rule enforces that the type of the program is in fact the same as the type $\type$ provided by the user as being its type. These are shown in \fref{pgmtyping} and \fref{datadtyping}.
+
+As for term typing, applications and case expressions are now treated quite differently from HM typing. The intuition for rule TmApp is that we no longer require the type of the operand to match the left side of the (function) type of the operator, but rather that we are able to implicitly convert from the former to the latter. Similarly, TmCase only requires that the type of the scrutinee is convertible to the type of the pattern.
+
+\begin{figure}
+\begin{flushleft}
+  \namedRuleform{ \progTyping{\imEnv}{\tyEnv}{t\_pgm}{\type}}
+                {Program Typing}
+\end{flushleft}
+\[
+\begin{array}{@{\hspace{0mm}}c@{\hspace{0mm}}}
+\inferrule*[right=Type]
+           {\progTyping{\imEnv}{\tyEnv}{pgm}{\type}}
+           {\progTyping{\imEnv}{\tyEnv}{\type;pgm}{\type}}
+           \\[5mm]           
+\inferrule*[right=Data]
+           {\dataDTyping{\tyEnv}{data}{\tyEnv'}\ \\\progTyping{\imEnv}{\tyEnv'}{pgm}{\type}}
+           {\progTyping{\imEnv}{\tyEnv}{data;pgm}{\type}}
+           \\[5mm]           
+\inferrule*[right=Expression]
+           {\txTerm{\imEnv}{\tyEnv}{\term}{\type}}
+           {\progTyping{\imEnv}{\tyEnv}{\term}{\type}}           
+\end{array}
+\]
+\caption{Program Typing}
+\label{pgmtyping}
+\end{figure}
+
+\begin{figure}
+\begin{flushleft}
+  \namedRuleform{ \dataDTyping{\tyEnv}{data}{\tyEnv'} }
+                {Data Declaration Typing}
+\end{flushleft}
+\[
+\inferrule*[]
+           {}
+           {\dataDTyping{\tyEnv}{(data\;T\;\tyVar=K\;\overline{\type})}{\tyEnv,T,(K:\tyAbs{\tyVar}{\overline{\type} \rightarrow T\;\tyVar})}}
+\]
+\caption{Declaration Typing}
+\label{datadtyping}
+\end{figure}
+
+\begin{figure}
+\begin{flushleft}
+  \namedRuleform{ \sTermTyping{\imEnv}{\tyEnv}{\term}{\typeS} }
+                {Term Typing}
+\end{flushleft}
+%\begin{comment}
+\[
+\begin{array}{@{\hspace{0mm}}c@{\hspace{0mm}}}
+    \inferrule*[right=Var]
+             {(\tmVar : \typeS)\in\tyEnv}
+             {\sTermTyping{\imEnv}{\tyEnv}{\tmVar}{\typeS}}
+
+             \quad\quad
+             
+  \inferrule*[right=Constr]
+             {(K:\typeS) \in \tyEnv}
+             {\sTermTyping{\imEnv}{\tyEnv}{K}{\typeS}}
+            \\[5mm]
+
+  \inferrule*[right=TmApp]
+  {
+  \sTermTyping{\imEnv}{\tyEnv}{\term_1}{\type_{arg} \to \type_2} \\
+  \sTermTyping{\imEnv}{\tyEnv}{\term_2}{\type_1}\\
+  \imRes{\imEnv}{j}{\type_{arg}}{\type_2}
+  }
+  { \sTermTyping{\imEnv}{\tyEnv}{\term_1\, \term_2}{\type_2} }
+
+  \\[5mm]
+
+  \inferrule*[right=TmAbs]
+  {
+  \sTermTyping{\imEnv}{\tyEnv, \tmVar : \type_1}{\term}{\type_2}
+  }
+  { \sTermTyping{\imEnv}{\tyEnv}{\lambda \tmVar . \term}{\type_1 \to \type_2} }
+  \\[5mm]
+
+  \inferrule*[right=TmLet]
+  {
+  \txTerm{\thEnv}{\imEnv}{\tyEnv}{\term_1}{\typeS} \\
+  \txTerm{\thEnv}{\imEnv}{\tyEnv,\term_1:\typeS}{\term_2}{\type_2}
+  }
+  { \txTerm{\thEnv}{\imEnv}{\tyEnv}{let\,\tmVar=\term_1\,in\,\term_2}{\type_2} }
+
+  \\[5mm]
+  \inferrule*[right=TmCase]
+             {(K : \forall a . \overline{\type} \rightarrow T \;a)\in \tyEnv
+               \\
+               \txTerm{\thEnv}{\imEnv}{\tyEnv}{e_1}{\type_1}
+               \\
+               \txTerm{\thEnv}{\imEnv}{\tyEnv,\overline{\tmVar}:[a\mapsto b]\overline{\type}}{e_2}{\type_2}
+               \\
+               \imRes{\imEnv}{j}{\type_1}{T\,b}
+             }
+             {\txTerm{\thEnv}{\imEnv}{\tyEnv}{case\;e_1\;of\;(K\;x)\rightarrow e_2}{\type_2}}
+             
+  \\[5mm]
+  \inferrule*[right=TmLocimp]
+  {
+  \sTermTyping{\bullet}{\tyEnv,\overline{\tyVar},\overline{j_i :\type_s \to \type_t}}{\term}{\type_{\rightsquigarrow}} \\
+  \sTermTyping{\imEnv,i}{\tyEnv}{\term_2}{\type_2}
+  }
+  { \sTermTyping{\imEnv}{\tyEnv}{(\iLocal{i}{\forall \overline{\tyVar}.\overline{j_i :\type_s \rightsquigarrow \type_t \Rightarrow\type_{\rightsquigarrow}}}{\term_1}{\term_2})}{\type_2} }
+ 
+  \\[5mm]
+  \inferrule*[right=Type Application]
+             {\sTermTyping{\imEnv}{\tyEnv}{\term}{\forall \tyVar. \typeS}\\
+               \tyEnv \vdash_{ty} \type }
+             {\sTermTyping{\imEnv}{\tyEnv}{\term}{[\tyVar \mapsto \type]\typeS} }           
+  \\[5mm]
+  \inferrule*[right=Type Abstraction]
+             {\sTermTyping{\imEnv}{\tyEnv,\tyVar}{\term}{\typeS}}
+             {\sTermTyping{\imEnv}{\tyEnv}{\term}{\forall \tyVar.\typeS} }
+\end{array}
+\]
+\caption{MyLang's Term Typing}
+\label{termtyping}
+\end{figure}
+
+\section{Constraint Generation}
+To type-check and elaborate a program, we first build the environment from the data declarations. We then partially elaborate its term (we leave place-holding term variables to be later on substituted by the necessary implicit conversions) while collecting both equality constraints (identical to HM) and the novel conversion constraints.
+
+Conversion constraints are determined by and implicit environment $\imEnv$ and by a conversion monotype $\type_{source} \rightsquigarrow \type_{target}$. They state that, under $\imEnv$ (the implicit environment under which they were generated), it must be possible to implicitly convert from $\type_{source}$ to $\type_{target}$.
+
+The generated constraints are easy to understand if we keep in mind HM's generation of constraints as well as the intuition provided when explaining the typing rules. Constraints are generated when we type an application as follows: if the operator $\term_1$ has type $\type_1$ and the operand $\term_2$ type $\type_2$, we type $\term_1\;\term_2$ as having type $\tyVar$ and store an equality constraint specifying that $\type_1$ is of the form $b \to \tyVar$, for some fresh type variable $b$. We also store a conversion constraint specifying that we need to be able to implicitly convert from $\type_2$ to $b$, under the current implicit environment $\imEnv$.
+
+As for case expressions, they too generate constraints. The idea here is that we must be able to implicitly convert from the type of the scrutinee to (an instantiation of) the type specified by data constructor on the patterns in the alternatives. Concretely, for a scrutinee  $\term_1$ with type $\type_1$, we store a conversion constraint from $\type_1$ to a fresh type variable $b$. Then, for each alternative, we enforce that $b$ equals the type of the pattern and that all the resulting expressions, under the typing environment extended with the patterns, have the same type.Other terms in our language merely collect the constraints of their sub-expressions.
+
+After collecting the constraints generated by the term, we add one last equality constraint: the monotype resulting from type inference on the term must be unifiable with the monotype provided by the user as being the type of the whole program.
+
+As we will see, we can always ``convert'' a type into itself, so, unsurprisingly,  this set of constraints are weaker than the constraints generated from typing HM terms: every term well-typed under HM is also well-typed under our language.
+
+
+\begin{figure}
+\begin{flushleft}
+  \namedRuleform{ \tyInfElab{\imEnv}{\tyEnv}{\term}{\type}{\eqCts}{\imCts}{\term'}}
+                {Type Inference and Partial Translation}
+\end{flushleft}
+\[
+\begin{array}{@{\hspace{0mm}}c@{\hspace{0mm}}}
+  \inferrule*[right=Var]
+             {(\tmVar : \forall \overline{\tyVar}.\type)\in\tyEnv \\ \overline{b} \; fresh}
+             {\tyInfElab{\imEnv}{\tyEnv}{\tmVar}{[\overline{\tyVar}\mapsto\overline{b}]\type}{\bullet}{\bullet}{\tmVar}}
+
+             \quad\quad
+             
+  \inferrule*[right=Constr]
+             {(K:\forall \tyVar . \type) \in \tyEnv}
+             {\tyInfElab{\imEnv}{\tyEnv}{K}{[\tyVar \mapsto \type']\type}{\bullet}{\bullet}{K}}
+            \\[5mm]
+
+  \inferrule*[right=Abstraction]
+             {\tyInfElab{\imEnv}{\tyEnv,\tmVar:\tyVar}{\term}{\type}{\eqCts}{\imCts}{\term'}}
+             {\tyInfElab{\imEnv}{\tyEnv}{\lambda \tmVar . \term}{\tyVar \rightarrow \type}{\eqCts}{\imCts}{\term'}}
+
+\\[5mm]
+  
+  \inferrule*[right=Application]
+  {
+  \tyInfElab{\imEnv}{\tyEnv}{\term_1}{\type_1}{\eqCts_1}{\imCts_1}{\term_1'} \\
+  \tyInfElab{\imEnv}{\tyEnv}{\term_2}{\type_2}{\eqCts_2}{\imCts_2}{\term_2'}
+  \\ fresh\;a\;,b\;,j
+  }
+  { \tyInfElab{\imEnv}{\tyEnv}{\term_1 \term_2}{\tyVar}{\eqCts_1 + \eqCts_2 + (\type_1 \sim b \rightarrow a)}{\imCts_1 +\imCts_2 + \namedImRes{\imEnv}{j}{\type_2}{b}}{\term_1'(j \; \term_2')} }
+  
+  \\[5mm]
+  
+  \inferrule*[right=Case]
+             {\overline{(K_i : \forall \overline{a} . \overline{\type} \rightarrow T \;\overline{a})\in \tyEnv}
+               \\
+               \tyInfElab{\imEnv}{\tyEnv}{e_1}{\type_1}{E_1}{Y_1}{e_1'}
+               \\
+               \overline{\tyInfElab{\imEnv}{\tyEnv,\overline{\tmVar_i}:[\overline{a}\mapsto \overline{c_i}]\overline{\type}}{e_{2i}}{\type_i}{E_i}{Y_i}{e_{2i}'}}
+               \\
+               fresh\;,b\;\overline{c_i},\;d\;,j
+             }
+             {\tyInfElab{\imEnv}{\tyEnv}{case\;e_1\;of\;\overline{(K_i\;\overline{x})\rightarrow e_{2i}}}{d}{E}{Y}{\term'}\\
+               E=E_1+\Sigma_iE_i+\overline{b \sim T\;\overline{c_i}}+\overline{\type_i \sim d}\\Y=Y_1+\Sigma_iY_i+\namedImRes{\imEnv}{j}{\type_1}{b}\\
+               \highlight{\term' = case\;(j\;e_1')\;of\;\overline{(K_i\;\overline{\tmVar})\rightarrow e_{2i}'}}}
+\\[5mm]
+  
+  \inferrule*[right=Let]
+  {
+  \tyInfElab{\imEnv}{\tyEnv}{\term_1}{\type_1}{\eqCts_1}{\imCts_1}{\term_1'} \\
+  \tyInfElab{\imEnv}{\tyEnv}{\term_2}{\type_2}{\eqCts_2}{\imCts_2}{\term_2'}
+  }
+  { \tyInfElab{\imEnv}{\tyEnv}{let\,\tmVar=\term_1\,in\,\term_2}{\tyVar}{\eqCts_1 + \eqCts_2}{\imCts_1 +\imCts_2}{let\,\tmVar=\term_1'\,in\,\term_2'} }
+  \\[5mm]
+  
+  \inferrule*[right=LocImp]
+  {
+  \elabTerm{\thEnv}{\bullet}{\tyEnv,\overline{\tyVar},\overline{j_i :\type_{source}\to\type_{target}}}{\term_1}{\type_{\rightsquigarrow}}{\term_1'} \\
+  \tyInfElab{\imEnv,i}{\tyEnv}{\term_2}{\type}{\eqCts}{\imCts}{\term_2'}
+  }
+  { \tyInfElab{\imEnv}{\tyEnv}{(\iLocal{i}{\forall \overline{\tyVar}.\overline{j_i :\type_{source}\to\type_{target}}\Rightarrow\type_{\rightsquigarrow}}{\term_1}{\term_2})}{\type}{\eqCts}{\imCts}{\term_2'} }
+  
+\end{array}
+\]
+\caption{bla}
+\label{typeinf}
+\end{figure}
+
+\section{Example}

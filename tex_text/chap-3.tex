@@ -1,0 +1,112 @@
+\chapter{System FC}
+\label{cha:3}
+
+A very nice feature of a language is non-syntactic type equality. Although the following features are outside the scope of this thesis, the use of non-syntactic type equality in System FC allows it to neatly express generalized algebraic data types, associated types and functional dependencies.
+
+Instead of considering two types the same only if they are written in the exact same way (\textit{i.e.} if they are syntactically equal), the type-checker is now willing to consider them the same if it is given a proof of that. Its main idea is to have explicit evidence for type equality in the language.
+
+System FC extends System F by supporting non-syntactic type equality. All System F terms can be expressed in System FC but the converse is not true. 
+
+The information in this chapter originates from the paper ``System F with Type Equality Coercions'' (\cite{fcpaper}); the figures have been copied from the fore mentioned paper.
+
+\subsubsection{The idea behind System FC}
+System F allows for types to be abstracted over and applied to expressions. In System FC, we want more: to be able to abstract over type equality proofs (called  coercions) and to apply them to expressions. In other words, we want to express things like ``provided those types are the same'' and ``here is the proof these two types are the same''.
+
+If we take System FC's coercions to be just types, then System F's terms for type abstraction and type application also allow for coercion abstraction and coercion application. This means that, considering coercions to be types, the syntax for System FC's terms can be almost the same as System F's. This was the path taken by the authors. A benefit of this approach of coercions as types is that all types get erased after type-checking, so coercions won't impose any overhead at runtime.
+
+Intuitively, you can think of a coercion ``from'' type $\type_1$ ``to'' type $\type_2$ as a guarantee that terms of type $\type_1$ can be safely used where terms of type $\gamma_2$ are expected. 
+
+Borrowing an idea from associated types, imagine we have a type-level function (a function from types to types) called \textit{BallUsed}. Given a sport (of type) $\type$ that can be played (in Haskell we'd frase it as ``there is an instance of Play for $\type$''), \textit{BallUsed} returns the type of the ball used to play the sport $\type$. Suppose (\textit{BallUsed} $\type_{Hockey}$) to be equal to $\type_{Disk}$. These types represent the same but are not syntactically equal, so applying a coercion would come in very handy.
+
+\section{Syntax}
+Types in System FC can be either coercions (which we'll represent by $\gamma$) or a regular System F type (represented by $\rho,\sigma,\tau \; \mathit{and} \; v$). System FC does not rely on this distinction: we use different letters only for clarity. We'll use $\varphi$ for the cases when the type may be either a coercion or a regular type.
+
+The syntax for System FC's terms is close to that of System F's. However:
+\begin{itemize}
+\item The \texttt{let} present in System FC differs from the one we previously explained by not being recursive;
+\item type variables in the type abstractions are now kind-annotated (we we'll explain the concept of kinds shortly);
+\item terms of the form $\term \blacktriangleright \gamma$ allow the use of the coercion $\gamma:\type_1 \sim \type_2$ to cast to type the term $\term$ of type $\type_1$ has having type $\type_2$.
+\end{itemize}
+As in System F, datatype declarations also introduce data constructors. In System FC, the type of such constructors can be $\forall a_1 . (...) .\forall a_n . \forall b_1. (...) .\forall b_m . \sigma \rightarrow T \; a_1 \; (...) \; a_n$. These $b$'s that are not reflected in the datatype $T$ are often coercions. What happens here is that coercions are really just proofs we have to give for the type-checking purposes.
+
+%The syntax for programs; sorts and kinds; and  types and coercions will be explained shortly.
+The complete syntax is shown in \fref{fcsyntax}.
+
+\begin{figure}
+  \centering
+  \includegraphics[height=185mm]{fcsyntax}
+  \label{fcsyntax}
+  \caption{Syntax of System FC}
+\end{figure}
+
+\section{Typing}
+We can think of kinds as being the types of the types. As an example, we define the kind of well-formed types without type variables to be $*$. Consequently, the kind of $\Nat$ is $*$ as is the kind of $\Nat \rightarrow \Nat$. Each extra type variable in well-formed types adds a $*\rightarrow$ to its kind: $List$ has type $\forall \tyVar . List \; \tyVar$ and thus kind $*\rightarrow *$. Intuitively this means that if a term $\term$'s kind has $n$ asterisks ($*$), then it has $(n-1)$ type abstractions. If we thing about it, the function types are something of the form $\type_1 \rightarrow \type_2$, for any $\type_1$ and $\type_2$. So the type of the constructor of function types (the $\rightarrow$) must be $\forall \tyVar_1 . \forall \tyVar_2 . \tyVar_1 \rightarrow \tyVar_2$. Its kind must then be $*\rightarrow *\rightarrow *$.
+
+The intuition we appealed to when we said, in the beginning of the chapter, that a ``coercion from type $\type_1$ to type $\type_2$ can be seen as a guarantee that terms of type $\type_1$ can be safely used where terms of type $\type_2$ are expected'' will now be refined. We define coercions' kinds as being $\type_1 \sim \type_2$, where $\type_1$ represent the ``from'' and $\type_2$ the ``to''.
+
+This is in line with System FC's slogan of ``propositions as kinds, proofs as (coercion) types'': when we say some term $\term$ is of the form $\Lambda \gamma:\type_1 \sim \type_2. \term'$ the coercion's kind states that an $\type_1$ must be able to be used where a term of type $\type_2$ is expected. When the coercion is later applied to a term $\term$, we have given a proof of the proposition and this proof can be used inside $\term'$.
+
+Coercions can exist due to the typing rules (as an example, in System FC for every type $\type$ well-formed under System F's syntax for types there is a coercion with kind $ \type \sim \type$); or due to being introduced in the system by means of an axiom. As we can see in \fref{fcty}, System FC has syntactic forms to build more complex coercions from these base cases. \fref{fckinds} introduces an auxiliary judgment needed for the typing rules. It allows to stratify kinds into ``kind of a regular type'' and ``kind of a coercion type''.
+
+
+\subsubsection{Example}
+As a small example taken from \cite{fcpaper}, let $Zero$ be a constructor of the datatype $Exp \; a$. The type of $Zero$ is $\forall a:*.\forall co:a\sim Int. Exp \; a$. This means that we'll get a term of type $Exp \; a$ if we apply a type (without type variables) and a coercion (stating that the type we gave can be used where an $Int$ is expected) to $Zero$. We can then apply to $Zero$ a regular type $Int$ and the trivial coercion that proofs we can use an $Int$ where an $Int$ is expected (call it $\mathit{IntEqInt}$): $(\mathit{Zero} \; \mathit{Int} \;\mathit{IntEqInt})$ has type $Exp \; Int$. However, had we simply given $Zero$ the type $Exp \; Int$, we would have problems with type-checking functions of the more general type $Exp \; a \rightarrow a$.
+
+\begin{figure}
+  \centering
+  \includegraphics[height=210mm]{fcty}
+  \label{fcty}
+  \caption{Typing rules for System FC}
+\end{figure}
+\begin{figure}
+  \centering
+  \includegraphics[height=60mm]{fckinds}
+  \label{fckinds}
+  \caption{Kinding rules for System FC}
+\end{figure}
+
+\section{Operational Semantics}
+\begin{figure}
+  \centering
+  \includegraphics[height=135mm]{fcsemantics}
+  \label{fcsemantics}
+  \caption{Operational Semantics for System FC}
+\end{figure}
+Unlike the languages encountered so far, values in System FC are stratified into $cvalues$ and $plain \; values$. The former is either the latter or a value wrapped in a single cast.
+
+The use of $cvalues$ allows us to control how to deal with casted terms. Even though a cast expressions have no operational effect, evaluating a $cvalue$ further would mean the loss of type preservation: evaluation of a well-typed term could result on a term with another type.
+
+In four specific situations, a $cvalue$ is not what we need, and as such the operational semantics define four rules to deal we them. The rules \textsc{TPush}, \textsc{CPush}, \textsc{Push} and \textsc{KPush} turn the cast into a plain value by pushing the coercion inside the term. These apply, respectively, when a cast is in:
+\begin{itemize}
+\item the function part of a regular type application;
+\item the function part of a coercion application;
+\item the function part of a function application
+\item the scrutinee of a \texttt{case} expression.
+\end{itemize}
+
+The complete operational semantics for System FC are shown in \fref{fcsemantics}.
+%For further explanation, we refer you to \cite{fcpaper}.
+
+
+
+%We can then use other syntactic forms of types to . Each of those syntatic forms correspond to an inference rule of equational logic.This base case is often introduced as an axiom by the user.
+
+%The only addition is the cast term. We'll write it as $cast(\term,\gamma)$. This term behaves exactly as $\term$, but is needed for type-checking purposes.
+
+%The syntax of System FC is given in \fref{sysfcsyntax}. From it we can see that any System F is a proper subset of System FC.
+
+
+
+%\subsubsection{Types' syntax}
+
+
+%\begin{figure}
+%  \caption{weds}
+%  \label{sysfcsyntax}
+%\end{figure}
+
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "thesis"
+%%% End: 
