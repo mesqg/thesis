@@ -1,0 +1,40 @@
+\chapter{Implicit Type Conversions}
+\label{cha:4}
+Implicit Type Conversions are an implicit programming feature that allows the programmer to write a conversion and then have that conversion automatically inserted in the places where it is needed at compile time.
+
+As a running example, suppose we have a portuguese farmer, Maria, who sells olives in Lisbon. She wrote some accounting software in a statically typed language and has defined a type Euro. She then decides to export her olives to Switzerland, so defines a type CHF. Suppose also that Maria travells back and forth in her electrical truck, only accepts cash payments in the local currency and can't cross countries with foreign currency.
+
+If the programming language supports ITC, instead of duplicating her code or manually introducing a converting function everytime a value in CHF is introduced to the system, she will only need to define once an implicit conversion from CFH to EUR to have the software running seemlessly.
+\section{Scala}
+Scala is a widely used language with support for Implicit Type Conversions. In Scala, a programmer is free to mark declarations with the ``implicit'' keyword. These declarations can later be used to fix type errors.
+
+Scala claims that it will not attempt to insert implicit conversions if there is not need for them and tries a single implicit at a time, \textit{i.e.} it will not try to compose conversions in order to fix type errors.
+
+To be available for use, an implicit conversion must be in scope under a single identifier (\textit{ i.e.} iconv but not X.iconv) or be defined in the ``companion object of  the source or expected target types of the conversion''.
+
+Scala enforces a ``non-ambiguity rule'': if two converting options are possible, an error will be reported. TODO because we found counter examples?
+
+(mention convertions of the receiver of a selection?)
+scala.Predef
+The use of implicit parameters enables writting an implicit conversion only applicable when another is in scope. It also allows for polymorphic methods in general, and in particular polymorphic implicit conversions.
+
+We could be tempted to use these feature in order to write a rule that would introduce transitivity. We would write as `` an implicit can be used to convert type variable $a$ to type variable $c$ if there are two implicit parameters: one able to convert from $a$ to another type variable $b$ and a second capable of converting from $b$ to $c$. However, this is not supported in Scala: there can only be one implicit parameter.
+\section{Problem Statement}
+In this thesis we design a language with a powerful set of features regarding ICT. It supports transitivity, local scoping, parametric polymorphism and allows the programmer to write a conversion (call it \textit{ main}) that can only be used when other (specified by their type) convertions  are in scope. It is actually better than that: each necessary conversion has a name to which the programmer can refer when writting the conversion expression for \textit{ main}.
+
+\subsection{Transitivity}
+A main contribution of this thesis is the support of transitivity in the use of implicit conversions. This is clearly a useful feature that allows the programmer to write less conversions.
+
+Suppose now that the currency in France is France Francs (FF). Maria needs to deal with EUR, FF and CHF. She needs to convert from FF to EUR and from CHF to FF. Having these functions defined, she get an implicit convertion from CHF to EUR for free. In general, if she needs to cross $n$ countries, all with different currencies, she gets $(n^2-n)/2$ converting functions for free.
+
+The flip side is that transitivity makes it much more likely to have several ways in which the code can be fixed/compiled into System F. We have opted by rejecting such programs. However, we have considered other approaches that can lead to interesting future work: assingning costs to each defined conversion and choose the converting path with the least associated cost is an example.
+
+\subsection{Local Scoping}
+Local scoping allows the same function to behave differently in distinct parts of the code. Take for example a function that determines whether someone is rich by comparing their net worth against an established cutoff value in Euros. By defining multiple (implicit) converting functions from CHF to Euro, Maria (in Switzerland with her CHF) can be poor in one scenario but rich in a part of the code that deals with the eventuality of the increase of counterfeit euro notes.
+
+\subsection{Parametric Polymorphism and Constrained Conversions}
+Parametric polymorphism has proven to be a very useful programming feature, with widespread support by programming languages. Allowing it in implicit conversions enables very significant code re-use.
+
+Costrained conversions take the form $(j: W \sim > Z) => X \sim > Y = expr$. They can be read as `` $expr$ is a function converting terms of type $X$ to terms of type $Y$, provided there is already in scope a conversion from $W$ to $Z$, that I chose to name $j$''. This $j$ can be used in $expr$ and must be replaced by the actual converting function from $W$ to $Z$ before using $expr$ to convert from $X$ to $Y$.
+
+Its easy to see that this feature is most useful when used with parametric polymorphism. We can then write implicit conversions that translate in english to ``given a conversion from type $a$ to type $b$ this is a conversion from $[a]$ to $[b]$''. We can easily write such a implicit conversion as $(j: a \sim > b) => [a] \sim > [b] = map\; j$, provided a $map$ function is available.

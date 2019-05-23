@@ -14,10 +14,12 @@
 %                               Source Syntax
 % ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-\newcommand{\tmVar}            {\mathit{x}}    % Term variables
+\newcommand{\tmVar}            {\mathit{x}}
+% Term variables
 \newcommand{\tmVal}            {\mathit{v}}    % Term values
 \newcommand{\tyVar}            {\mathit{a}}    % Type variables
-\newcommand{\iLocal}[5]        {locimp\, {#1} \Rightarrow {#2}\to{#3}={#4}\,in\,{#5}}    % Impl conv variables
+\newcommand{\iLocal}[4]        {locimp\; {#1} : {#2}={#3}\;in\;{#4}}    % Impl conv variables
+\newcommand{\monolocal}[4]     {locimp\;{#1}:{#2}\to{#3}={#4}\;in\;}
 \newcommand{\term}             {\mathit{e}}
 \newcommand{\type}             {\mathit{\tau}} % Simple types
 \newcommand{\qtype}            {\mathit{\rho}} % Simple types
@@ -42,21 +44,23 @@
 %                               Source Typing
 % ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 \newcommand{\ogtcTerm}[4]      {{#1} ; {#2} \vdash_{tm} {#3} : {#4}}
-\newcommand{\elabTerm}[6]        {{#1} ; {#2};{#3} \vdash_{tm} {#4} : {#5}; {#6}}
+\newcommand{\clsElabTerm}[6]        {{#1} ; {#2};{#3} \vdash_{tm} {#4} : {#5}; {#6}}
+\newcommand{\elabTerm}[5]        {{#1} ; {#2} \vdash_{tm} {#3} : {#4}; \highlight{{#5}}}
                                 % Type checking term
 \newcommand{\infTerm}[6]       {{#1} ; {#2} \vdash_{tm} {#3} : {#4} ; {#5} ; {#6}}
 \newcommand{\infTermTrans}[7]       {{#1} ; {#2} \vdash_{tm} {#3} : {#4} ; {#5} ; {#6} ; {#7}}
                                 % Type inference term
 \newcommand{\imRes}[4]         {{#1} \vDash_i {#2}:{#3} \rightsquigarrow {#4}}
                                 % Impl conv resolution
-\newcommand{\namedImRes}[4]         {{#1} \vDash_i {#2}: {#3} \rightsquigarrow {#4}}
+\newcommand{\convconst}[4]      {{#1} \vDash_{ct} {#2}: {#3} \rightsquigarrow {#4}}
+\newcommand{\convth}[5]         {{#1} \vDash_{th} {#2}: {#3} \rightsquigarrow {#4};{#5}}
+\newcommand{\convax}[4]         {{#1} \vDash_{ax} {#2}: {#3} \rightsquigarrow {#4}}
                                 % Named Impl conv resolution
-\newcommand{\imResSubs}[5]         {{#1} \vDash_i {#2}:{#3} \rightsquigarrow {#4};{#5}}
+\newcommand{\imResSubs}[5]         {{#1} \vDash_i {#2}:{#3} \rightsquigarrow {#4};\highlight{#5}}
                                 % Impl conv resolution Subs
 \newcommand{\imResi}[5]        {{#1} ; {#2} \vDash_i {#3} \rightsquigarrow {#4};{#5}}
                                 % Internal impl conv resolution
-\newcommand{\imResiSubs}[7]        {{#1} ; {#2} \vDash_i {#3}:{#4} \rightsquigarrow {#5} ; {#6};{#7}}
-
+\newcommand{\imResiSubs}[7]        {{#1} ; {#2} \vDash_i {#3}:{#4} \rightsquigarrow {#5} ; \highlight{#6};{#7}}
 
 \newcommand{\txTerm}[4] {{#1};{#2} \vdash_{tm} {#3}:{#4}}
 \newcommand{\clsTxTerm}[5] {{#1};{#2};{#3} \vdash_{tm} {#4}:{#5}}
