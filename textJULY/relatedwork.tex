@@ -1,0 +1,19 @@
+\chapter{Related work}
+\label{relatedwork}
+We position our language against existing related work.
+\subsubsection{Dimension Types}
+In his paper (\cite{kennedy}), Kennedy introduces numeric types parameterised on dimensions. These are used to check that expressions that relate multiple numerical values are sensible from a dimensional point of view. As an example, both speed and length may have the same type but it wouldn't make sense to sum a these values. His system is polymorphic in that functions can be written to work over any dimension.
+
+As new idea, we could consider euros and dollars to have type Euro and Dollar, respectively, but use the idea of dimension to encode the fact that a implicit conversion between these types is appropriate whereas a conversion between types of different dimensions is not.
+\subsubsection{Cochis}
+In their paper on the Caculus of Coherent Implicits (Cochis), the authors present a type-safe and coherent calculus with support for local scoping, overlapping instances, first-class instances and higher order rules.
+
+Cochis introduces \textit{queries}, which are values to be fetch by type. Calling a function with a query as argument will cause the system to look up a value of the corresponding type in the implicit environment. In Cochis, there is syntax to abstract over implicit values of some given type and to extend the environment where the implicits are looked up. For more information on Cochis, we refer you to the original paper (\cite{cochis}).
+
+Note that, in spite of the fact that both our work on implicit type conversions and Cochis are implicit programming mechanisms, they are completely orthogonal: theirs refers to implicit parameters whereas ours is about implicit conversions.
+\subsubsection{A theory of typed coercions and its applications}
+TODO \cite{swamy}
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "thesis"
+%%% End: 

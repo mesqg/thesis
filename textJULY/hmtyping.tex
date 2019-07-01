@@ -1,0 +1,54 @@
+\documentclass{standalone}
+
+\usepackage[utf8]{inputenc}
+\usepackage{ upgreek }
+\usepackage{mathpartir}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{tcolorbox}
+\usepackage{xcolor}
+\input{macros}
+\begin{document}
+%\begin{minipage}{.45\linewidth}
+
+\begin{flushleft}  
+
+  \namedRuleform{ \tyEnv \vdash_{tm} \term : \type \highlight{;\term_F};E}
+                {Term Typing}
+\end{flushleft}
+%\end{minipage}
+\[
+\begin{array}{@{\hspace{0mm}}c@{\hspace{0mm}}}
+
+  \inferrule*[right=T-Var]
+  { (\tmVar : \forall \overline{a}.\type) \in \tyEnv\\ \overline{b}\;fresh }
+  { \tyEnv \vdash_{tm} \tmVar : [\overline{a}\mapsto\overline{b}]\type \highlight{;x\;\overline{b}};\bullet }
+ \\[5mm]
+  \inferrule*[right=T-App]
+  {\tyEnv \vdash_{tm} \term_1 : \type_1 \rightarrow \type_2 \\
+   \tyEnv \vdash_{tm} \term_2 : \type_1 }
+  {\tyEnv \vdash_{tm} \term_1 \, \term_2 : \type_2 }
+
+  \quad \quad
+
+  \inferrule*[right=T-Abs]
+  { \tyEnv, \tmVar:\type_1 \vdash_{tm} \term : \type_2 \\ \tyEnv \vdash_{ty} \type_1}
+  { \tyEnv \vdash_{tm} \lambda\tmVar:\type_1.\term : \type_1 \rightarrow \type_2 }
+
+  \\[5mm]
+  
+  \inferrule*[right=T-TApp]
+  { \tyEnv \vdash_{tm} \term : \tyAbs{\tyVar}{\type_1} \\ \tyEnv \vdash_{ty} \type_2}
+  { \tyEnv \vdash_{tm} \term \; \type_2 : [\type_2/\tyVar]\type_1 }
+  
+  \quad \quad
+  
+  \inferrule*[right=T-TAbs]
+  {\tyEnv, \tyVar \vdash_{tm} \term : \type_1\\\tyVar \notin \tyEnv}
+  {\tyEnv \vdash_{tm} \Lambda \tyVar .\term : \tyAbs{\tyVar}{\type_1}}
+  
+\end{array}
+\]
+
+
+\end{document}

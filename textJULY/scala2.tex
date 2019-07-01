@@ -1,0 +1,23 @@
+\documentclass{standalone}
+
+
+\usepackage{listings}             % Include the listings-package
+\begin{document}
+\lstset{language=Scala}          
+
+\begin{lstlisting} % Start your code-block
+  z
+  implicit def impl_conv (x:Char):Int = 3
+  def function(x:Char):String =
+  x match {
+    case 3 => ``Int 3''
+    case 97 => ``Int 97''
+    case 'a' => ``Char 'a'''
+    case _ => ``Other''
+  }
+  println(function('a'))
+
+  > Int 97
+\end{lstlisting}
+
+\end{document}

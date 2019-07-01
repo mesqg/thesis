@@ -1,0 +1,4 @@
+digraph G {
+CHF -> a [label="I_1"];
+DKK -> a [label="I_1"];
+}

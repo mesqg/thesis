@@ -1,0 +1,22 @@
+\chapter{Introduction}
+\label{cha:intro}
+We build tools to make our life easier. The goal is to have the least amount of work when solving some problem, provided that we retain full control on how our problem is being solved. Washing machines wash our dirty laundry but we choose the temperature, we do not let them guess it. However, if we were sure that the machines could infer the right temperature by the laundry it has been fed, we would be glad that it is now easier to have clean clothes.
+
+Programming languages are tools. They have been evolving for the past decades allowing us to solve more problems and/or solve them in a better way. ``A better way'' is not restricted to a more elegant final solution: the process of writing the code should also be taken into account. Languages with static typing allow the detection of erroneous code sooner, at compile-time. However, static typing can lead to a reduction in the expressivity of a language and to the need of explicitly writing the types in the programs.
+
+The Hindley-Milner type system \cite{damas,hm2,hm3} is a perfect example of a breakthrough in the way we solve our problems. While being a powerful enough language in which a great variety of programs can be expressed, Hindley-Milner improves on System F by eliminating the need for explicitly annotating the programs (a burden for the user) which in turn improves on the less sophisticated Simply Typed Lambda Calculus since it enables code re-use by allowing functions to be defined once and applicable to arguments of any type.
+
+Implicit programming mechanisms ``infer values by a type-directed resolution process, making programs more compact and easier to read''(\cite{cochis}). Implicit programming features have surfaced in a number of languages: from Haskell \cite{adhoc} and Coq's \cite{coq} type classes, to Agda's implicit arguments \cite{agda} and to Rust's traits \cite{rust}, to name a few. 
+
+Scala \cite{scala} is a widely used programming language that enables the use of implicit parameters and implicit conversions. This means that a parameter can be omitted from a function and Scala will fetch it (under certain conditions); and that functions can be applied to arguments of a different type, as long as there is an implicit conversion from the type of the provided argument to the type of the expected argument. As an example, we can define once an implicit conversion from the type Euro to the type Dollar, and rest assured our program will behave as expected in cases where euros are provided but dollars are expected.
+
+Nonetheless, there is room for improvement: as the technology stands now, given an implicit conversion from Euro to Dollar and one from Dollar to Pounds, Scala's implicit conversions will not be able to take the two steps and implicitly convert from Euro to Pound. This text presents TrIC, a language that supports transitivity in its implicit type conversions, thus allowing the programmer to avoid writing tedious conversions and thus also possibly avoiding some hard to find bugs.
+
+Furthermore, TrIC supports novel features regarding implicit conversions, from local scoping to constrained conversions. User-friendliness is taken into account so that this extension behaves in a way the user can easily predict. This is not currently the case: Chapter \ref{cha:4} provides an example of implicit conversions in Scala leading the execution of our program down unintended paths.
+
+A prototype implementation of this feature has been implemented the KU Leuven Haskell compiler (KHC). As a consequence, TrIC must be compatible with the existing features, in particular with Haskell's type inference mechanism and its type classes.
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "thesis"
+%%% End: 

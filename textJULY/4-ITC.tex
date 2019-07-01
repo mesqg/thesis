@@ -1,0 +1,233 @@
+\chapter{Implicit Type Conversions}
+\label{cha:4}
+
+This chapter starts by introducing implicit type conversions (ITC) and showcasing them with a simple example (Example \ref{itc4}). Afterwards, the state of the art is discussed in Section \ref{sota}. In Section \ref{problem}, the problem statement of this thesis is precisely defined and its main ideas clarified. Finally, in Sections \ref{ambiguity} and \ref{complex types}, some immediate consequences of the problem statement are addressed.
+
+\section{The Basics}
+\label{itc4}
+This text defines implicit type conversions to be an implicit programming feature that allows the programmer to write conversions and then have them automatically inserted where needed.
+
+The support of implicit conversions requires two basic aspects: a set of expressions intended to be used to convert terms of type $\type_1$ to terms of type $\type_2$ and a way to figure out where, which and how these expressions should be added to the source program.
+
+A \textit{conversion axiom} consists of one such converting expression $\term$, the type ($\type_s$) $\term$ converts from and the type ($\type_t$) $\term$ converts to. Even though $\type_s$ and $\type_t$ could be inferred in a language with type inference (as the one presented in chapter \ref{cha:5}), these inferred types could be more general then intended by the programmer and thus applicable in undesired circumstances. As such they should be explicitly written by the user. The set of conversion axioms is know as the \textit{implicit environment}.
+
+As for the ``where, which and how'' to use these conversing expressions, the main idea is to perform type inference and, upon encountering an inconsistency, flag it and associate it with a \textit{conversion constraint}, stating the type $\type_1$ inferred and the type $\type_2$ needed.
+
+From this point onwards, ``$\rightsquigarrow$'' will be used to denote the implicit conversion from the type $\type_s$ on its left to the type $\type_t$ on its right, as in  $\type_s \rightsquigarrow \type_t$. In this chapter, to distinguish between the possibility of converting from $\type_s$ to $\type_t$ (due to the existent conversion axioms) and the necessity of a conversion from $\type_s$ to $\type_t$ (a conversion constraint), these arrows will be indexed by, respectively, ``ax'' ($\type_s\rightsquigarrow_{ax}\type_t$) and ``ct'' ($\type_s\rightsquigarrow_{ct}\type_t$).
+
+ As a running example, suppose Maria sells olives in Lisbon. She wrote some accounting software and has defined a type EUR (for Euro). She then decides to export her olives to Switzerland, so defines a type CHF (for Swiss Franc). If the programming language supports ITC, instead of duplicating her code or manually introducing a converting function every time a value in CHF is introduced to the system, she will only need to define an implicit conversion from CFH to EUR once to have the software running seamlessly.
+
+ As a more concrete example, consider Maria's updated program to compute the taxes she has to pay:
+
+     \[
+\begin{array}{@{\hspace{0mm}}l@{\hspace{0mm}}}
+data\;\text{EUR}=K_{\text{EUR}}\;Float\\
+data\;\text{CHF}=K_{\text{CHF}}\;Float\\
+...\\
+conversion\;axiom:: CHF \rightsquigarrow_{ax} EUR = convertingExp \\
+taxes :: EUR \to EUR = ...\\
+taxes (K_{CHF} \; 30.0)
+\end{array}
+\]
+
+The conversion constraint in this case is CHF $\rightsquigarrow_{ct}$ EUR, because $taxes$ expects an argument of type EUR but gets one of type CHF. Because of the conversion axiom, the final expression will be elaborated to $taxes (convertingExp\;(K_{CHF} \; 30.0))$, which could then be evaluated to a EUR value.
+
+\section{State of the Art}
+\label{sota}
+In the literature, implicit type conversions can also refer to a widely used language feature that implicitly converts between some of the language's fundamental types. In C or C++, for example, if an arithmetic expression has operands of two different types (suppose we try to sum a \textit{long double} and a \textit{float}) the compiler will implicitly convert the type with lowest rank (\textit{float}) to the type of highest rank (\textit{long double}) and use the '+' operator as defined for type long double.
+
+However, as apparent from the last section, this thesis is concerned with user-defined implicit type conversions. To the best of our knowledge, only two mainstream languages already support user-defined implicit type conversions: Scala and C\#.
+\subsection{Scala}
+\label{scala}
+
+Scala is a widely used language with support for Implicit Type Conversions. In Scala, a programmer is free to mark declarations with the ``implicit'' keyword. These \textbf{marked} declarations can later be used to fix type errors.
+
+To be available for use, an implicit conversion must be in scope under a single identifier or be defined in the ``companion object of  the source or expected target types of the conversion''.
+
+Scala allows for polymorphic methods in general, including in implicit conversions. Furthermore, the use of Scala's implicit parameters enables writing implicit type conversions only applicable when another implicit conversion is in scope. 
+
+Scala will not try to compose conversions in order to fix type errors. One could be tempted to bypass this restriction by using the fore mentioned features in order to write a rule that would introduce transitivity. The idea would be to write this implicit as ``it is possible to convert type variable $a$ to type variable $c$ if there are two implicit parameters: one able to convert from $a$ to another type variable $b$ and a second capable of converting from $b$ to $c$''. However, this is not supported in Scala, since only be one implicit parameter can be used.
+
+According to its documentation, Scala will not introduce conversions unless necessary, enforces a ``non-ambiguity rule'' and ``overloading resolution is applied if there are several possible candidates'' for implicit conversions. As will be shown, this overloading resolution can cause the language to become hard to predict from the user's point of view. This is aggravated by the fact that Scala pre-defines several high-priority implicit type conversions which will shadow the user's defined conversions.
+
+\fref{scala} presents a Scala program that showcases the difficult nature of understanding the use of Scala's implicit type conversions and contradicts Scala's claim that it will not attempt to insert implicit conversions if there is no need for them.
+
+\begin{figure}
+  \centering
+  
+  \includegraphics{scala2}
+  \caption{Execution of a Scala program}
+  \label{scala}
+\end{figure}
+Note that Scala ignores the user-defined conversion and then applies a conversion predefined in the language (there is the option of not loading any predefined conversions), and that there was no need for any conversion to be used in the first place, since \textit{function} is applied an argument of the expected type.
+\subsection{C\#}
+C\# \cite{csharp} is another well-known language that supports user-defined implicit type conversions. Conversions are declared on ``classes or structs so that classes or structs can be converted to and/or from other classes or structs, or basic types. Conversions are defined like operators and are named for the type to which they convert. Either the type of the argument to be converted, or the type of the result of the conversion, but not both, must be the containing type.''
+
+As in Scala, only one user-defined conversion can be used at a time. Under some conditions it is possible to write conversions with generic types. If there exists a predefined conversion for the same types of the user-defined conversion, the latter will be ignored.
+\section{Problem Statement}
+\label{problem}
+The aim of this thesis is to design a calculus with (user-defined) implicit type conversions and provide an implementation for this feature in the KU Leuven Haskell Compiler (KHC). This calculus improves on the state of the art by allowing transitivity to be used in the implicit type conversions. Other novelties are the local scoping of the conversion axioms and the fact that the user is able to write polymorphic axioms with possibly multiple conditions on the implicit environment. 
+Since it is designed as a Haskell language feature, type inference and compatibility with type classes are central concerns. In general, any Haskell program that type-checks without ITC should not be affected in any way. Further, the user should be able to easily predict the behavior of the calculus and the syntax of the language should be clear and as simple as possible.
+
+In this section, we elaborate on the advanced features supported by TrIC, the language defined in Chapter \ref{cha:5}.
+
+\subsection{Transitivity}
+Supporting transitivity in implicit type conversions means that the language automatically tries to compose the available conversion axioms in order to convert a term to the appropriate type, instead of being limited to applying one user-provided conversion axiom.
+
+Consider the following example: Maria decides to sell olives in Copenhagen. She will also need to deal with Danish Krones (DKK). For some obscure reason, she defined functions that expect CHF that are useful in Denmark too. Nonetheless, much of the code is written for arguments to be of type EUR, so she also needs a conversion from DKK to EUR. Having previously defined a conversion from CHF to EUR, she now needs only to define an implicit conversion from DKK to CHF and gets an implicit conversion from DKK to EUR for free. 
+
+This is clearly a useful feature, as it allows the programmer to write less conversions. In general, if she defines a chain of $n$ conversions she will get $(n^2-n)/2$ converting functions for free.
+
+As you might expect, this feature does not come without costs. Section \ref{ambiguity} discusses one effect on the language of the increase in the number of ways a source program can be corrected, due (in part) to the presence of transitivity.
+
+
+\subsection{Local Scoping}
+The language presented in this thesis enables a extensible implicit environment \textbf{throughout the code}. Adjusting the implicit environment makes it possible for conflicting conversions to co-exist in the code, as long has their scope does not overlap. As a corollary of this, the same function, applied to the same argument can yield different results due to that fact that different conversions are being used in distinct parts of the code, as specified by the programmer.
+
+As an example of how the implicit environment affects the value of some expression, suppose a complex function \textit{happiness} that computes the happiness of Maria by taking two arguments: the money (in CHF) she has and her location (the name of a city, from a pre determined set of cities). Given these two, the function proceeds by case analysis on her location. Depending on which city she is at, it calls a myriad of functions, some of which require EUR as input. Suppose the converting function CHF to EUR also depends on which city Maria is (\textit{i.e.} the exchange rate of CHF to EUR is higher in Zurich than in Lugano). This program can be simplified by writing ``local'' conversion axioms whose scope is restricted to the part of \textit{happiness} that implements the behavior for each city. Another example in which the diversified behavior of a function (due to the local scoping of implicit conversions) would be useful is in the generation of boilerplate code.
+
+%Take for example a function that determines whether someone is rich by comparing their net worth against an established cutoff value in Euros. By defining multiple (implicit) converting functions from CHF to Euro, Maria (in Switzerland with her CHF) can be poor in one scenario but rich in a part of the code that deals with the eventuality of the increase of counterfeit euro notes.
+
+As will be shown in Section \ref{ambiguity}, altering the implicit environment has much more profound consequences than just locally affecting the values returned by functions: it determines the types of the terms (inclusively whether they are well-typed) and thus which conversion axioms should be used to correct a program. As such, allowing the programmer to write locally scoped conversion axioms enables her to retain full control of the code while providing the convenience of implicit conversions. 
+
+
+
+%takes an absolutely central role in the language, inclusively determining to which types some terms need to convert into, affecting the elaboration of the terms and the results of the program.
+
+\subsection{Parametric Polymorphism and Constrained Conversions}
+\label{param4}
+A conversion axiom $i$ that is only applicable if some conditions regarding the existence of other conversion axioms in the implicit environment are met is know as a \textit{constrained conversion}. If a conversion axiom $ax_1$ is conditional on the existence of another ($ax_2$), it is likely that the converting expression $ax_1$ introduces depends on the converting expression associated with $ax_2$. TrIC takes mesures to support this connection between the converting expressions.
+
+Another programming feature that enjoys widespread support by programming languages, since it enables code re-use, is parametric polymorphism. Allowing it in implicit conversions brings its benefits to this language extension.
+
+Parametric polymorphism by itself has limited applicability in implicit conversions: not only it may be hard to think of a case in which implicit conversions from and/or to \textit{anything} useful; but it is also impossible to write an expression capable of converting, for example, from an Integer to some type variable $a$. However, the two fore mentioned features can also be used together. If, for example, a list datatype is present and a mapping function defined, the user can easily write an implicit conversion from a list of any type $a$ to a list of any other type $b$ ([a]$\rightsquigarrow_{ax}$[b]) provided it is possible to implicitly convert type $a$ to type $b$ (a$\rightsquigarrow_{ct}$b). This feature is further discussed in Section \ref{polymorphic conversions}.
+
+
+
+\section{Ambiguity}
+\label{ambiguity}
+Implicit type conversions are, in essence, a language feature that automatically corrects (typing) errors. For languages with such correcting features, an immediate concern is to specify its behavior when multiple ways to fix the source program would be possible. 
+
+One aspect to keep in mind is that both parametric polymorphism and transitivity lead to a broader applicability of user-defined conversions. Consequently, the chance of multiple possible ``fixes'' is higher.
+
+Since predictability is a crucial requirement of any programming language, its the behavior must be uniquely defined: for every source program at most one ``corrected'' program can exist. This leads to a natural tension between simplicity and expressivity. A finer-grained definition of the language places more of a burden on the user in order to understand the functioning of implicit conversions, while a coarser one maims the expressivity of the language, since more programs will be rejected.
+
+In order to decide on the desired behavior for a language with implicit conversions, consider the program (in Haskell-like syntax) presented in Example \ref{eg4}, where, in addition to the previously mentioned data types (EUR, CHF and DKK), USD (for US Dollar) and Wallet are also defined. The data constructor for type Wallet is polymorphic and takes two arguments of the same type. We can intuitively think of these arguments as amounts of some currency in notes and in coins, even though there is no way to restrict the arguments to currency amounts. Assume the existence of the following implicit conversions: DKK $\rightsquigarrow_{ax}$ EUR and CHF $\rightsquigarrow_{ax}$ EUR (\fref{1st}).
+ \begin{eg}
+\[
+\begin{array}{@{\hspace{0mm}}l@{\hspace{0mm}}}
+data\;\text{EUR}=K_{\text{EUR}}\;Float\\
+data\;\text{CHF}=K_{\text{CHF}}\;Float\\
+data\;\text{DKK}=K_{\text{DKK}}\;Float\\
+data\;\text{USD}=K_{\text{USD}}\;Float\\
+data\;\text{Wallet}\;a = K_{\text{Wallet}} \;a \;a\\[3mm]
+K_{\text{Wallet}}\;(K_{\text{DKK}}\;10.1)\;(K_{\text{CHF}}\;30.3)
+\end{array}
+\]
+\label{eg4}
+\caption{Mock program}
+\end{eg}
+The first aspect to ponder on is whether this program should be accepted: there is no conversion from DKK to CHF nor the other way around. However, it is possible to convert, under the current implicit environment, both arguments of $K_{\text{Wallet}}$ to a common type: EUR. 
+
+If, in addition to the implicit conversions already defined, there was also DKK~$\rightsquigarrow_{ax}$~USD and CHF $\rightsquigarrow_{ax}$ USD (\fref{2nd}), the same choice would now be arbitrary: both EUR and USD are possible and there is no obvious criteria under which one is better than the other.
+
+For a more intricate case, suppose the implicit conversions defined are: DKK~$\rightsquigarrow_{ax}$~EUR, CHF~$\rightsquigarrow_{ax}$~EUR and EUR $\rightsquigarrow_{ax}$ USD (\fref{3rd}). Despite being still possible to convert both DKK and CHF to both EUR and USD, a case could be made that program should be corrected (by converting both to EUR) rather than rejected: both DKK and CHF need to be converted to EUR before they can then be converted to USD, meaning that a clear ``minimal'' solution exists. Finally, how to handle the case of a fourth conversion, from DKK to USD (\fref{4th})?
+\begin{figure}
+  \centering
+  \begin{subfigure}{.20\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{1st}
+    \caption{}
+    \label{1st}
+  \end{subfigure}
+  \begin{subfigure}{.20\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{2nd}
+    \caption{}
+    \label{2nd}
+  \end{subfigure}
+  \begin{subfigure}{.20\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{3rd}
+    \caption{}
+    \label{3rd}
+  \end{subfigure}
+  \begin{subfigure}{.20\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{4th}
+    \caption{}
+    \label{4th}
+  \end{subfigure}  
+  \caption{Possible implicit environments - resolving type variables}
+  %\label{dom4pic}
+\end{figure}
+
+So far we have considered which type (if any) a given type should be converted to. Another issue to address is what should the behavior be when there are multiple ways to convert between two (ground) types. Suppose we must convert from DKK to EUR and there are two applicable conversion axioms available: DKK $\rightsquigarrow_{ax}$ EUR and $a \rightsquigarrow_{ax}$ EUR (\fref{2a}). Or suppose there are three axioms, the first two of which can be composed (due transitivity), to convert from DKK to EUR: DKK $\rightsquigarrow_{ax}$ USD, USD $\rightsquigarrow_{ax}$ EUR, and DKK~$\rightsquigarrow_{ax}$~EUR (\fref{2b}). What should then be the specified behavior?
+\begin{figure}
+  \centering
+  \begin{subfigure}{.20\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{2a}
+    \caption{}
+    \label{2a}
+  \end{subfigure}
+  \begin{subfigure}{.20\textwidth}
+    \centering
+    \includegraphics[width=\linewidth, height = 30mm]{2b}
+    \caption{}
+    \label{2b}
+  \end{subfigure}
+  \caption{Possible implicit environments - constraint with ground types}
+  %\label{dom4pic}
+\end{figure}
+
+TrIC considers a conversion constraint between two ground types to be ambiguous if there are multiple ways in which to compose the appropriate axioms. Furthermore, if any of the axioms has conditions that can be entailed in more than one ways, the conversion is considered ambiguous, as will be explained in Chapter \ref{cha:6}. One such constraint results in the rejection of the program.
+
+\textbf{to be moved if there is a alternative design section.}Another interesting approach would be to assign costs to each conversion and choosing the implicit conversion with the lowest cost. These costs could be the sum, over the conversion axioms used to compose the conversion, of a function $f$ that assigns a cost to each conversion axiom. Some candidate $f$ functions are the function constantly equal to $1$ (this would mean choosing the conversion that uses less conversion axioms) or equal to a value assigned by the user when introducing an conversion axiom in the program, enabling the user to penalize some less desirable conversions (for example, conversions with information loss).
+
+As for deciding to what type $\type_t$ some given types $\overline{\type_{s_i}}$ should be converted to, a first obvious approach would be to reject any program in which any choices are possible. However, this would mean the program presented in this section, with DKK $\rightsquigarrow_{ax}$ EUR, CHF $\rightsquigarrow_{ax}$ EUR and EUR $\rightsquigarrow_{ax}$ USD as available implicits would be rejected. In order to avoid this severe and unnecessary restriction, TrIC relies on the definition of dominator (Section \ref{dom4}) and considers a program ambiguous when, in at least one situation, no dominator exists.
+
+%A program is also considered ambiguous (and thus is rejected by the language presented in \ref{cha:5}) if the instantiation of its type variables is ambiguous or, if any of its ground conversion constraints is ambiguous.
+
+\subsection{Dominator}
+\label{dom4}
+The notion of \textit{dominator} was introduced as the answer to the question ``to what type should some terms be implicitly converted to?''. This question arises under a set of conversion constraints and its answer is computed with respect to the set of conversion axioms available in the implicit environment.
+
+The \textit{dominator} of a set of conversion constraints $S=\overline{\type_{s_i}\rightsquigarrow_{ct} \type_{t_i}}$, with $\overline{\type_{s_i}}$ ground types, is defined as being the type $\type_{dominator}$ to which all $\type_{s_i}$'s can convert into and such that, for any other type $\type_d$ such that  all $\type_{s_i}$'s can convert into $\type_d$, any conversion from any $\type_{s_i}$ to $\type_d$ can be decomposed into a conversion from $\type_{s_i}$ to $\type_{dominator}$ and another from $\type_{dominator}$ to $\type_d$. This text defines implicit type conversion as a reflexive relation.
+
+The generation of constraints will be discussed in detail in Section \ref{constraint generation}. Nonetheless, we can already use the intuition to infer that the conversion constraints generated under the program presented in Example \ref{eg4} are that DKK and CHF need to be convertible in to some common type: DKK $\rightsquigarrow_{ct} a_1$ and CHF $\rightsquigarrow_{ct} a_1$, for some type variable $a_1$. For ease of visualization, \fref{dom4pic} plots multiple conversion axioms in a graph, which will be used to construct multiple implicit environments under which the dominator of these two constraints is computed.
+\begin{figure}
+  \centering
+  \includegraphics[height=50mm]{teste}
+  \caption{Possibilities for Conversion Axioms}
+  \label{dom4pic}
+\end{figure}
+
+The first set of conversion axioms discussed in this section is \{$ax_1,ax_2$\}. Since there is only one type into which both DKK and CHF are convertible when these are the available axioms, EUR, this is the dominator.
+
+If we now extend the set of available axioms to \{$ax_1,ax_2,ax_3$\}, both DKK and CHF are convertible to both EUR and USD. However, (all) the conversion(s) from DKK to USD can be decomposed into a conversion from DKK to EUR an another from EUR to USD and likewise for the conversion from CHF to USD, so EUR is the dominator of the constraints, reflecting the intended behavior.
+
+Extending the implicit environment to \{$ax_1,ax_2,ax_3,ax_4$\} does not affect the set of types both CHF and DKK can convert to, nor the paths to these types, so it does not affect the dominator (it is still EUR). Under the assumption that the implicit environment is \{$ax_1,ax_3,ax_4,ax_5$\}, there is once again a single type both CHF and DKK can convert to: USD. As such, USD is the dominator.
+
+Finally, if all the axioms in \fref{dom4pic} are taken into account, no dominator exists and the program is rejected. In this setting, both EUR and USD are reachable from both CHF and DKK. USD is clearly not the dominator as $ax_1$ is a conversion from CHF to EUR that can not be decomposed into a conversion from CHF to USD and a conversion from USD to EUR; neither is EUR: the composition of axioms $ax_4$ and $ax_5$ is a conversion from DKK into USD that can not be decomposed into a conversion from DKK to EUR and a conversion from EUR to USD.
+
+%ZWD  \\   USD\\  $\rightsquigarrow_{ax_1}$\\$\rightsquigarrow_{ax_2}$\\$\rightsquigarrow_{ax_3}$\\$\rightsquigarrow_{ax_4}$\\$\rightsquigarrow_{ax_5}$
+
+%\subsection{Conditionals}
+%\textbf{local type inference => how to use unresolved type variables?? Okay constraints wont have them but while constructing the conversion...}
+\section{Complex Types}
+\label{complex types}
+Consider again the data type Wallet $a$, whose constructor \textsc{$K_{\text{Wallet}}$} takes two terms of type $a$. Section \ref{ambiguity} discussed the term \textsc{$K_{\text{Wallet}}\;(K_{\text{DKK}}\;10.1)\;(K_{\text{CHF}}\;30.3)$}. Under the implicit environments presented during the discussion of dominator, this term was either ill-typed or had type Wallet EUR or Wallet USD.
+
+Slightly modifying the term to \textsc{$\lambda x. (K_{\text{Wallet}}\;(K_{\text{DKK}}\;10.1)\;x)$} causes the situation changes dramatically. Under HM its type would be DKK $\to$ Wallet DKK, which in clearly too restrictive this setting.
+
+Having understood the idea behind implicit type conversions, we could be inclined to type \textsc{$\lambda x. (K_{\text{Wallet}}\;(K_{\text{DKK}}\;10.1)\;x)$} as ``$a \to$ Wallet DKK, as long as $a$ can be implicitly converted to DKK''. A second thought about this would lead to the realization that this too is overly restrictive: Section \ref{dom4} showed that, depending on the implicit environment, both subterms may be converted to some common type. We have now gotten a better intuition about the type of \textsc{$\lambda x. (K_{\text{Wallet}}\;(K_{\text{DKK}}\;10)\;x)$}: it should be something like ``$a \to$ Wallet $b$, as long as both $a$ and DKK can be implicitly converted into $b$''. As programs grow, this could lead to unreasonably complex terms to be presented to the user, which is incompatible with the user-friendliness requirement of the problem statement. This will be discussed in detail in Chapter \ref{cha:5}.
+
+%Suppose the source program is simply a function that take an argument and applies it twice to the wallet constructor: $\lambda x. W_k \;x\; x$. Without implicit type conversions, this program would have type $EUR \to Wallet$. However, in a setting with implicit type conversions we must be more flexible: for any type $\type$ implicitly convertible to $EUR$, 
+%It should be noted that the type annotation also enables to elaborate programs that would otherwise be considered ambiguous due to polymorphic functions/data constructors.
+
+%Suppose there is polymorphic (on $a$) data type $Wallet \;a = W_K \;a \; a$ whose constructor takes two terms type $a$. You can think of the terms as the monetary value of the coins and of the notes, and of the type as the currency in which these values are expressed. $Wallet\;EUR$ consists of two EUR values, the EUR value of the coins and the EUR value of the notes. At this point you could have wallets of anything, not just currency. In \ref{cha:7} we discuss implicit type conversions with type classes, which would be nice here. (TODO obvsly)
+
+%However, if Maria tries to create a wallet $(W_k (EUR_k 5) (CHF_k 70))$, in a setting in which is possible to implicitly convert from EUR to CHF and the other way around, the program can not be unambiguously elaborated. The presence of the type annotation resolves this ambiguity and we're good.
+
+%%%%%`` A method or constructor can have only one implicit parameter list, and it must be the last parameter list given.'' ``The implicit view, if it is found, can accept is argument e as a call-by-value or as a call-by-name parameter. However, call-by-value implicits take precedence over call-by-name implicits. As for implicit parameters,  (of either the call-by-value or the call-by-name category).'' : if two converting options are possible, an error will be reported. TODO because we found counter examples?

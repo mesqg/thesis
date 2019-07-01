@@ -1,0 +1,92 @@
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+%                              General Syntax
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+\newcommand\authornote[3]{\textcolor{#2}{#1: #3}}
+\newcommand\francisco[1]{\authornote{Francisco}{red}{#1}}
+\newcommand\gertjan[1]{\authornote{Gert-Jan}{orange}{#1}}
+
+\newcommand{\ruleform}[1]{\fbox{$#1$}}
+\newcommand{\namedRuleform}[2]{{\small $\ruleform{#1}$} \quad {#2}}
+
+
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+%                               Source Syntax
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+\newcommand{\tmVar}            {\mathit{x}}
+% Term variables
+\newcommand{\tmVal}            {\mathit{v}}    % Term values
+\newcommand{\tyVar}            {\mathit{a}}    % Type variables
+\newcommand{\iLocal}[3]        {locimp\; {#2} : {#1}\;in\;{#3}}    % Impl conv variables
+\newcommand{\monolocal}[3]     {locimp\;{#3}:{#1}\to{#2}\;in\;}
+\newcommand{\term}             {\mathit{e}}
+\newcommand{\type}             {\mathit{\tau}} % Simple types
+\newcommand{\qtype}            {\mathit{\rho}} % Simple types
+\newcommand{\typeS}            {\mathit{\sigma}} % Simple types
+\newcommand{\typeF}            {\mathit{\sigma^F}} % Simple types
+\newcommand{\convmono}         {\mathit{\tau_{\rightsquigarrow}}} % Conv Monotypes
+\newcommand{\convpoly}         {\mathit{\sigma_{\rightsquigarrow}}} % Conv Polytypes
+\newcommand{\eqCts}            {\mathit{E}}    % Equality constraints
+\newcommand{\imCts}            {\mathit{Y}}    % Impl conv constraints
+
+% Environments
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\newcommand{\tyEnv}            {\Gamma}        % Typing environment
+\newcommand{\imEnv}            {I}             % Impl conv environment
+\newcommand{\thEnv}            {P}             % Program Theory
+
+% Types
+% - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\newcommand{\tyAbs}[2]         {\forall {#1} . {#2}} % Type abstraction
+
+
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+%                               Source Typing
+% ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\newcommand{\ogtcTerm}[4]      {{#1} ; {#2} \vdash_{tm} {#3} : {#4}}
+\newcommand{\clsElabTerm}[6]        {{#1} ; {#2};{#3} \vdash_{tm} {#4} : {#5}; {#6}}
+\newcommand{\elabTerm}[5]        {{#1} ; {#2} \vdash_{tm} {#3} : {#4}; \highlight{{#5}}}
+                                % Type checking term
+\newcommand{\infTerm}[6]       {{#1} ; {#2} \vdash_{tm} {#3} : {#4} ; {#5} ; {#6}}
+\newcommand{\infTermTrans}[7]       {{#1} ; {#2} \vdash_{tm} {#3} : {#4} ; {#5} ; {#6} ; {#7}}
+                                % Type inference term
+\newcommand{\imRes}[4]         {{#1} \vDash_i {#2}:{#3} \rightsquigarrow {#4}}
+                                % Impl conv resolution
+\newcommand{\convconst}[4]      {{#1} \vDash_{ct} {#2}: {#3} \rightsquigarrow {#4}}
+\newcommand{\convX}[3]      {{#2} \rightsquigarrow_{#1} {#3}}
+\newcommand{\convthi}[5]         {{#1} \vDash_{th_i} {#2} \rightsquigarrow {#3};{#4};\highlight{#5}}
+\newcommand{\convthr}[4]         {{#1} \vDash_{th} {#2}\rightsquigarrow {#3};\highlight{#4}}
+\newcommand{\convax}[4]         {{#1} \vDash_{ax} {#2} \rightsquigarrow {#3};\highlight{#4}}
+\newcommand{\convmust}[3]         {{#1} \vDash {#2}\rightsquigarrow {#3}}
+                                % Named Impl conv resolution
+\newcommand{\imResSubs}[5]         {{#1} \vDash_i {#2}:{#3} \rightsquigarrow {#4};\highlight{#5}}
+                                % Impl conv resolution Subs
+\newcommand{\imResi}[5]        {{#1} ; {#2} \vDash_i {#3} \rightsquigarrow {#4};{#5}}
+                                % Internal impl conv resolution
+\newcommand{\imResiSubs}[7]        {{#1} ; {#2} \vDash_i {#3}:{#4} \rightsquigarrow {#5} ; \highlight{#6};{#7}}
+
+\newcommand{\txTerm}[4] {{#1};{#2} \vdash_{tm} {#3}:{#4}}
+\newcommand{\txTermCls}[5] {\highlight{#1};{#2};{#3} \vdash_{tm} {#4}:{#5}}
+\newcommand{\clsTxTerm}[5] {{#1};{#2};{#3} \vdash_{tm} {#4}:{#5}}
+\newcommand{\sTermTyping}[4] {{#1};{#2} \vdash_{tm} {#3}:{#4}}
+%\newcommand{\txTermSig}[5] {{#1};{#2};{#3} \vdash_{w/Signature} {#4}:{#5}}
+\newcommand{\progTyping}[4] {{#1};{#2} \vdash_p {#3}:{#4}}
+\newcommand{\progTypingCls}[5] {{#1};{#2};{#3} \vdash_p {#4}:{#5}}
+\newcommand{\clsProgTy}[5] {{#1};{#2};{#3} \vdash_p {#4}:{#5}}
+\newcommand{\classTyping}[3] {{#1}; \vdash_{class} {#2}:{#3}}
+\newcommand{\instTyping}[4] {{#1};{#2} \vdash_{inst} {#3}:{#4}}
+\newcommand{\imEnvBuild}[5] {{#1},{#2},{#3} \vdash_{impl} {#4}:{#5}}
+\newcommand{\dataDTyping}[3] {{#1} \vdash_{data} {#2}:{#3}}
+\newcommand{\tyInfElab}[7] {{#1};{#2} \vdash_{tm} {#3}:{#4};{#5};{#6};\highlight{{#7}}}
+\newcommand{\toptype}[5] {{#1};{#2} \vdash_{tm} {#3}:{#4};\highlight{{#5}}}
+\newcommand{\tyInfTyCls}[9]       {{#1} ; {#2}; {#3} \vdash_{tm} {#4} : {#5} ; {#6} ; {#7} ; {#8};{#9}}
+\newcommand{\namedImRes}[4]         {{#1} \vDash_i {#2}: {#3} \rightsquigarrow {#4}}
+%~~~~~~~~~~~~~~~~~~~~~~~~~
+%Typing STLC
+%
+\newcommand{\stlcty}[3]        {{#1} \vdash_{tm} {#2} : {#3}}
+\newcommand{\sysftype}         {\mathit{\type_F}}
+\definecolor{superlightgray}{gray}{0.80}
+\newcommand{\highlight}[1]{\setlength{\fboxsep}{2pt}\colorbox{superlightgray}{\ensuremath{#1}}}
+\newcommand{\Nat}         {\mathit{Nat}}

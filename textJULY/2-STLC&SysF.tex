@@ -1,0 +1,258 @@
+\chapter{STLC and System F}
+\label{cha:2}
+Programming languages should have desirable properties programmers can take advantage of when using them. But before relying on those properties, they should be rigorously proved. For that, it is very useful to have a small core language (to minimize what needs to be taken into account when proving such results), capable of expressing the full power of the language. This chapter is based on Chapters $5,6,9$ and $23$ of Types and Programming Languages \cite{tapl}.
+
+\section{The Untyped Lambda-Calculus}
+The simple or untyped lambda-calculus \cite{lambdacalculus}, introduced in the 1920s by Alonzo Church, is one such (very) small core language, based on the essential notion of functions. Functions are expressions abstracted over some variables; and can be given arguments to replace these variables. The application of arguments to a function yields a new expression which may (or may not) then be further evaluated.
+
+In the pure lambda-calculus, functions are called abstractions (even though throughout this thesis functions and abstractions are used interchangeably). Whereas mathematics or programming languages such as Java use the notation \texttt{f(x)=\{...\}} for functions, lambda calculus uses the lambda notation: $\lambda \tmVar .\; \{...\}$. For example, the function \texttt{square(x)=x*x} translates to $\lambda \tmVar . \tmVar*\tmVar$.  Another difference is that while applying a function to a given argument is usually written as \texttt{f(argument)}, lambda calculus syntax is $((\lambda \tmVar .\;\{...\} ) \; argument)$. This means that \texttt{square(2)} becomes $(\lambda \tmVar . \tmVar^2)\;2$. \fref{untypedsyntax} presents the syntax of the untyped lambda-calculus, where the vertical bars can be read as ``or''. Its terms $\term$ can only be variables $\tmVar$, abstractions of some term over a variable $\lambda \tmVar. \term$ or the application of a term to another: $\term_1$ $\term_2$.  In $\lambda \tmVar. \term$, $\term$ is sometimes referred to as the body of the abstraction.
+
+\begin{figure}
+  \centering
+  $\term ::= \tmVar\,|\,\lambda \tmVar.\term\,|\,\term_1 \; \term_2  \hfill terms $\\
+  \caption{Syntax for the untyped lambda-calculus}
+  \label{untypedsyntax}
+\end{figure}
+Abstractions can be nested: $\lambda \tmVar_1. \lambda \tmVar_2 .\tmVar_1$ is a valid term that, when applied to one argument and then a second, it returns the first. However, had it been written as $\lambda \tmVar. \lambda \tmVar. \tmVar$, it would behave differently (it is effectively another term) and return the second argument. The variable $\tmVar$ in the inner abstraction is said to be shadowing the $\tmVar$ in the outer. This is easily solved with De Bruijn's indices by assigning numbers, that reflect to which $\lambda$ they refer, to the variables. The term $\lambda \tmVar_1. \lambda \tmVar_2 .\tmVar_1$ would translate to $\lambda .\lambda.1$. You can think of this term as $\lambda 1.\lambda 0.1$. More information on De Bruijn's indices can be found in chapter 6 of Types and Programming Languages\cite{tapl}. This notions that the names of the variables are irrelevant for the meaning of the term is called $\alpha$ conversion.
+
+In case the calculus is enriched with naturals and addition, terms such as ``$(\lambda \tmVar.\tmVar + 1)\,15$'' (applying $15$ to the successor function) or more convoluted terms like $((\lambda \tmVar_1. \lambda \tmVar_2 .3 + (\tmVar_1\;\tmVar_2)\;) \, (\lambda \tmVar_3.\tmVar_3 + 1))\,15$ can be expressed. The latter would then simplify to $3+(15+1)$. Despite being Turing complete (which in essence means that it can emulate any programming language), its simple syntax and evaluation rules also allow for meaningless terms (for which no evaluation rules exist) such as $\tmVar_1 \, \tmVar_2$ or $\tmVar_1 \, (\lambda \tmVar_2.5)$.
+
+\section{Simply Typed Lambda Calculus}
+In order to prevent terms from being \textit{stucked} during evaluation, types were introduced, resulting in the simply typed lambda-calculus (STLC). Types ensure that \textit{well-typed} terms share some highly desirable properties. Erroneous code will not be well-typed (although well-typedness does not guarantee that the program will behave as intended by the program) and consequently the errors are shifted from runtime to compile time.
+\subsection{Syntax}
+\begin{figure}
+  %\centering
+  $\term ::= \tmVar\,|\,\lambda \tmVar:\type.\term\,|\,\term_1 \; \term_2 \,|\, \highlight{\{0,1,...\}} \hfill terms $\\
+  $\highlight{\tmVal::= \lambda \tmVar:\type.\term \,|\, \{0,1,...\}} \hfill \highlight{values}$\\
+  $\highlight{\type ::= \type \rightarrow \type \,|\,\Nat} \hfill \highlight{types}$\\
+  $\highlight{\tyEnv::=  \bullet \,|\, \tyEnv, \tmVar:\type} \hfill \highlight{environment}$\\
+    \caption{STLC's syntax (extended with Naturals)}
+  \label{STLC syntax}
+\end{figure}
+
+The syntax of the STLC (extended with natural numbers) is illustrated in \fref{STLC syntax}, with new syntax highlighted in grey. There is a novel notion: a value, which is a special term. In the pure STLC, only abstractions are defined to be values. Extensions of the STLC introduce new syntax, some of which may be defined to be values as well.
+
+Abstractions now require the type of its argument to be explicitly given (in an annotation immediately after the variable). Having this requisite qualifies a language as explicitly typed.
+
+To make STLC interesting, we need to introduce some base type to it. Otherwise, no term would be well-typed (as will be explained shortly). As such, in this section, the pure STLC is extended with natural numbers. This extension defines natural numbers to be values too (which implies they are also terms).
+
+\subsection{Typing}
+
+Types reflect the fundamental difference between abstractions (a mathematical function) and other terms. Abstractions are given a \textit{function type} ($\type_1 \rightarrow \type_2$). This type informs about the type of the argument the abstraction can be applied to ($\type_1$) and about the resulting type of that operation, $\type_2$. In the current extension, we have added the \textit{base type} $\Nat$ and decided to assign it to natural numbers. A \textit{base type} is a type that is not constructed from other types. This is opposed to \textit{function types}, which are constructed from two types: the type of the argument and the type of the result. If there are no base types, there are no types at all and no term can ever have a type.
+
+\textit{Well-typed} terms are defined as being the terms we can assign some type to (the remaining terms are known as \textit{ill-typed}).
+
+The typing rules for STLC (the combination of the pure STLC's typing rules and the ones we introduced for natural numbers) are shown in \fref{STLC typing}. They reflect our choice to assign natural numbers the type $Nat$. This means that natural numbers are well-typed terms. Infinitely many other terms are also well-typed, as will be clear once we take a closer look at these rules.
+
+Before diving into the typing rules, it is helpful to keep in mind the behavior of functions: applying a function that takes elements of a set $X$ to elements of $Y$ to an argument from $X$ results in an element of $Y$. Conversely, if by assuming the argument given to the function $f$ is in some set $X$ it will surely return an element of $Y$, then $f$ is a function from $X$ to $Y$.
+
+As such, we expect the type of a function that receives a natural and adds $3$ to it ($\lambda \tmVar:Nat.\tmVar+3$) to be $Nat \rightarrow Nat$. Note that a given abstraction could have several types if its variable was not explicitly annotated. Consider for example $\lambda \tmVar:?.3$: It has type $? \to Nat$, for any type $?$.
+
+Using the intuition again, we expect the type of the identity function applied to a natural number $((\lambda \tmVar: Nat. \tmVar) \, 4)$ to be $Nat$. 
+
+Because abstractions can be nested, we must keep track of all assumptions made about the types of variables. These are kept in what is known as a \textit{typing  environment} ($\tyEnv$ is used to denote environments). Therefore, typing is a relation in the product of environments, terms and types. The assumption that $\tmVar$ has type $\type$ is stored as $\tmVar:\type$; $\tmVar$ is said to be \textit{bound} to $\type$.
+
+The T-Var rule simply states that, if some variable $\tmVar$ is bound to some given type $\type$ in an environment $\tyEnv$, then, under $\tyEnv$, that $\tmVar$ has type $\type$. The rules T-Abs and T-App reflect our intuition about functions. Note that $\tyEnv,\tmVar:\type_1$ in the rule T-Abs represents the environment $\tyEnv$ to which the assumption ``$\tmVar$ has type $\tyVar$'' has been added.
+
+The rules \textsc{T-NatZero} and \textsc{T-NatSuc} are type natural numbers: they state, respectively, that zero is a natural and that any term is a natural if its predecessor is.
+
+\begin{figure}
+  \centering
+  \includegraphics{typingrules}
+  \caption{Typing rules for STLC}
+  \label{STLC typing}
+\end{figure}
+\subsubsection{Typing derivations}
+A typing derivation is a constructive proof that some term $\term$ as a given type $\type$. It shows how to use the typing rules to infer that conclusion. As we type closed terms (terms in which all variables appear for the first time as the argument of an abstraction), a typing derivation for a STLC's term starts with $\tyEnv=\bullet$, \textit{i.e.}, it starts with no assumptions. Note that the the typing rules hold for any environment $\tyEnv$, and in particular to the empty environment $\bullet$.
+
+In STLC, a well-typed term has exactly one type (ill-typed have none), and it can be proven that the typing derivations are unique: there is exactly one way to prove a term has its type.
+
+\subsubsection{Example of a typing derivation (should i explain it?)}
+\fref{stlctydev} shows an example of a typing derivation for $((\lambda \tmVar: \Nat \rightarrow \Nat.x) \, (\lambda \tmVar:\Nat.\tmVar))\,15)$. This derivation is a prove that the term has type $\Nat$ and it holds for any environment $\tyEnv$, in particular for the empty environment $\bullet$.
+
+The easiest way to understand it is from bottom to top. Because the term is an application the rule T-App is considered. To prove the term has type $\Nat$ it must now be proved that, for some $\type$, $((\lambda \tmVar: \Nat \rightarrow \Nat.x) \, (\lambda \tmVar:\Nat.\tmVar))$ has type $\type \rightarrow \Nat$ and that $15$ as type $\type$. We stick to this approach and keep simplifying what we need to prove until a trivial case is reached. By trivial cases are meant either a typing rule with no premises (T-NatZero) or a true statement (using T-Var).
+
+Note that trying to prove that the fore mentioned term has type $\Nat \rightarrow \Nat$, we would reach a point in which no typing rules would apply, so the derivation would be incomplete and thus not a proof.
+
+\begin{figure}
+  \centering
+  \includegraphics[angle=90,height=21cm]{stlctdev}
+  \caption[angle=90]{Typing Derivation for  $((\lambda \tmVar: \Nat \rightarrow \Nat.x) \, (\lambda \tmVar:\Nat.\tmVar))\,15)$}
+  \label{stlctydev}
+\end{figure}
+
+\subsection{Evaluation}
+\label{stlceval}
+Regarding the evaluation of a STLC term, it should first be noted that STLC is a language with only variables, abstractions, and applications. Since abstractions are already values they are not evaluated further and it would not make sense to evaluate a variable. It would also not make sense to evaluate an application in which the left hand side is a variable ($\tmVar\; \term$) or another application: $((\term_1\;\term_2)\;\term_3$). In the former case it could be reasonable to evaluate $\term_1\;\term_2$ further but not the top-level application. 
+
+As such, only applications in which the left side is an abstraction can be further evaluated. A pair of a function and a argument of the correct type is known as a \textit{reducible expression}, or \textit{redex} for short.
+
+Given a redex (a function with type $\tyVar_1\to\tyVar_2$ and an argument of type $\tyVar_1$) the evaluation consists in replacing the variable bound by the function everywhere in the body of the function by the argument given. The evaluation of the term then proceeds on another redex.
+
+\begin{figure}
+  \centering
+  \includegraphics{stlcevalrules}
+  \caption{Call by name evaluation rules for STLC}
+  \label{STLC eval}
+\end{figure}
+
+Happiness is defined in different ways by different people and this applies to evaluating STLC terms as well: there are several ways to define the evaluation rules, \textit{i.e.} there are several ways to decide which redexes get evaluated first and even if they get evaluated at all. This section presents the evaluation rules of call-by-name: this similar to Haskell's strategy, except for the fact that Haskell memorizes which terms are the same in order to avoid computing the same multiple times (Haskell's evaluation strategy is known as call-by-need).
+
+The evaluation rules are presented in \fref{STLC eval}. The formula $[x\mapsto\term_2]\term_1$ represents $\term_1$ in which all occurrences of the variable $\tmVar$ were replaced by the term $\term_2$.
+
+Since Haskell is a functional language, it seems fitting that it stops whenever it gets a function: evaluation stops when we get to an abstraction not in a redex. In other words, redexes inside the body of an abstraction are not evaluated, because none of the evaluation rules can then be applied. The rule E-App states that it is possible to further evaluate the left side of an application, the whole application evaluates to the new left side applied to the same right side. In a way, this evaluation strategy looks ahead to figure out what will happen with the argument when it is part of a redex. If it turns out the argument is never used, it is never evaluated. For this reason, call-by-name and Haskell's call-by-need are said to be lazy evaluation strategies.
+
+In most of the traditional programming languages, the arguments must always be evaluated: this is called a strict or eager evaluation strategy. One example of such evaluation strategy is call-by-value. In call-by-value, only the outermost redex for which the right side is already a value can be further evaluated.
+\subsubsection{An example of a call-by-name evaluation of a term}
+\fref{stlcexeval} (where $N$ represents $\Nat$ for brevity), illustrates how the evaluation of a non-trivial STLC's term proceeds. Keep in mind that evaluating a term means replacing the top-level expression by some other term.
+
+First, note the left side of the application can be further evaluated: E-AppAbs is applied to $(\lambda \tmVar_1: (N \rightarrow N)\rightarrow N.\lambda \tmVar_2:N.\lambda \tmVar_3: N . (\tmVar_1 \, \tmVar_2)\,\tmVar_3) (\lambda \tmVar_4:N. \lambda \tmVar_5:N. \tmVar_4 + \tmVar_5)$, resulting in the replacement of $\tmVar_1$ by $\lambda \tmVar_4:N. \lambda \tmVar_5:N. \tmVar_4 + \tmVar_5$ everywhere in $\lambda \tmVar_2:N.\lambda \tmVar_3: N . (\tmVar_1 \, \tmVar_2)\,\tmVar_3$. The rule E-App then allows us to replace our old top-level expression by one in which the left side has been evaluated.
+
+Applying E-AppAbs to what is now a simple redex replaces the variable $\tmVar_2$ everywhere in the body of the abstraction by the number $3$. Then no evaluation rules apply to the top-level expression, so the evaluation stops.
+
+Note how the redex $(\lambda \tmVar_4:N. \lambda \tmVar_5:N. \tmVar_4 + \tmVar_5) \, 3$ is not further simplified due to being within a lambda abstraction.
+\begin{figure}
+    $((\lambda \tmVar_1: (N \rightarrow N)\rightarrow N.\lambda \tmVar_2:N.\lambda \tmVar_3: N . (\tmVar_1 \, \tmVar_2)\,\tmVar_3) (\lambda \tmVar_4:N. \lambda \tmVar_5:N. \tmVar_4 + \tmVar_5))\;3$
+    \\
+$\rightarrow_{E-AppAbs\text{ followed by }E-App}(\lambda \tmVar_2:N.\lambda \tmVar_3: N. ((\lambda \tmVar_4:N. \lambda \tmVar_5:N. \tmVar_4 + \tmVar_5) \, \tmVar_2)\,\tmVar_3)\; 3 $\\
+    $\rightarrow_{E-AppAbs}\lambda \tmVar_3: N. ((\lambda \tmVar_4:N. \lambda \tmVar_5:N. \tmVar_4 + \tmVar_5) \; 3)\,\tmVar_3 $
+
+  \caption{Example of an evaluation of a STLC's term}
+  \label{stlcexeval}
+\end{figure}
+\subsection{Properties TODO}
+\textbf{It is the combination of the typing rules with the evaluation rules that ensures that in STLC well-typed terms never reach a state in which they are neither a value nor can continue evaluating. We call this property type safety.}
+
+In type safe languages, saying that a term $\term$ has type $\type$ means that no values of a type other than $\type$ will result from its evaluation. In fact, either the evaluation goes on forever, or we get a value of the given type. To avoid proving the desirable properties of well typed terms to be completely useless, we need a base type.
+\section{System F}
+In the pure lambda-calculus it is possible to express the term ``$id=\lambda\tmVar.\tmVar$'' which, when applied to a term, returns it. Functions in untyped lambda calculus do not care about their argument: they are defined for any and behave equally for all of them. This behavior is close to what is called, in a slightly more evolved setting where types are present, parametric polymorphism. Parametric polymorphism is defined (\cite{adhoc}) as occurring ``when a function is defined over a range of types, acting in the same way for each type''.
+
+In STLC, it is no possible to write one single identity function and have it defined over a range of types: because the lambda abstractions are type annotated, a different function is needed for each type. Applying an abstraction $\lambda \tmVar : \type_1$ to a term $\term$ of type $\type_2$ is not well-typed and thus not part of the language. In general, a function is defined for only one type. This lack of parametric polymorphism is a severe limitation of STLC.
+
+System F \cite{systemf,girard} extends STLC with parametric polymorphism while maintaining type safety.
+
+\subsection{Syntax}
+In order to enable functions to apply to terms of multiple types, it is necessary to abstract terms over types. System F supports this behavior in a similar manner to STLC's abstraction over terms. Its syntax is shown is \fref{sysfsyntax} and it is an extension of STLC's. In this text, System F types are denoted by $\typeF$.
+
+For the purpose of abstracting terms over types, it is necessary to add type variables and a language construct $\Lambda \tyVar.\term$ that represents the abstraction of $\term$ over the type variable $\tyVar$. The $id$ function can now be re-written as $\Lambda \type. \lambda \tmVar_1: \type . \tmVar_1$. Terms of the form $\Lambda \type.\term$ are called type abstractions. Because the newly defined $id$ is, in essence, still a function, it should also be considered a value. In general, type abstractions are defined to be values too.
+
+Conversely, types $\type$ must be applied to type abstractions in order to have a ``normal'' function that can be applied to arguments of type $\type$. This way, the syntax is further extended to include the application of a type to a term. If $\Nat$ is applied to the newly defined $id$ function, the result is a function that has type $\Nat \rightarrow \Nat$. This is completely analogous to term application and is known as type application.
+
+Note that, opposed to term abstractions, which specify the type of the terms that can be applied, type abstractions in System F have no way to restrict ``the type of the type'' (known as the \textit{the kind}) that can be applied a type application.
+
+\begin{figure}
+    $\term ::= \tmVar\,|\,\lambda \tmVar:\typeF.\term\,|\,\term_1 \; \term_2 \,|\,\highlight{\Lambda \tyVar .\term}\,|\,\highlight{\term\;\typeF} \hfill terms $\\
+  $\tmVal::= \lambda \tmVar:\typeF.\term \,|\, \highlight{\Lambda \tyVar. \term}\hfill values$\\
+  $\typeF ::= \tyVar\,|\,\typeF \rightarrow \typeF \,|\,\highlight{\forall \tyVar.\typeF}\hfill types$\\
+  $\tyEnv::=  \bullet \,|\, \tyEnv, \tmVar:\typeF\,|\,\highlight{ \tyEnv,\tyVar}\hfill typing\;environments$\\
+  \caption{Syntax for System F}
+  \label{sysfsyntax}
+\end{figure}
+
+\subsection{Typing}
+Drawing another parallelism with STLC, whereas before the assumptions made about the term variables were stored and is was only possible to reason about variables in the environment, now the type variables encountered must also be considered.
+
+The typing environment can now be extended with type variables: ``$\tyEnv,\tyVar$''. These are introduced to the environment when type-checking type abstractions.
+
+The same way a term can only be well-typed if all its variables are in the environment, a type can only be \textit{well-formed} if all its type variables are in $\tyEnv$. This is actually the only condition for type well-formedness for this simple system. Type well-formedness is a concept that will be used for the typing rules in System F. The sentence ``under the typing environment $\tyEnv$, the type $\type$ is well-formed'' is represented by ``$\tyEnv \vdash_{ty} \type''$.
+
+Unsurprisingly, the System F's typing rules extend STLC's. The complete typing rules for System F in shown in \fref{sysfty}. Two rules were added. The \textsc{T-TApp} rule types type application. If a term $\term$ has some type of the form $\tyAbs{\tyVar}{\type_1}$, then the application of $\type_2$ to $\term$ has type that results from substituting the type variable $\tyVar$ in $\type_1$ in by $\type_2$. The rule \textsc{T-TAbs} is concerned with type abstraction and state that if, by adding the type variable $\tyVar$ to the typing environment, term $\term$ can be typed as having type $\type$; then, abstracting $\term$ over that type variable has type $\tyAbs{\tyVar}{\type}$.
+
+A parametrically polymorphic function $twice$ that, given a function and a term, applies the function to the term and them applies it again on the result of the first computation can be expressed in System F as: $\Lambda \tyVar. \lambda \tmVar_1: \tyVar \rightarrow \tyVar . \lambda \tmVar_2:\tyVar. \tmVar_1 (\tmVar_1 \tmVar_2)$. The type of $twice$ is $\tyAbs{\tyVar}{(\tyVar \rightarrow \tyVar) \rightarrow \tyVar \rightarrow \tyVar}$.
+
+\begin{figure}
+  \centering
+  \includegraphics{sysfty}
+  \caption{Call by name typing rules for System F}
+  \label{sysfty}
+\end{figure}
+\subsection{Evaluation}
+The operational semantics of System F \textbf{is/are} an extension from STLC's. System F has the same E-App and E-AppAbs rules for term abstraction and application; it also has their type counterpart: rules E-TyApp and E-TyAppAbs. These are completely analogous. All of them are shown in \fref{sysfeval}.
+
+\begin{figure}
+  \centering
+  \includegraphics{sysfeval}
+  \caption{Operational semantics for pure System F}
+  \label{sysfeval}
+\end{figure}
+
+
+\section{System F extended}
+This section is concerned with extending System F with data constructors, let bindings and case expressions, making it closer to the language TrIC, presented in Chapter \ref{cha:5} and to a real world programming language.
+
+A major advantage of this extension is that instead of needing pre-defined base types as in the pure System F, it is now possible to introduce types in the programs through the use of data declarations.
+
+Most of these additions to the pure System F's syntax make the language much more user-friendly but do not increase its expressive power. \textbf{It will be apparent that we could just inline the value on a let binding to have the same effect, or use a redex to substitute everywhere the placeholder variable by the intended value.} Although it is not obvious, datatypes have been shown to be encodable using polymorphism.
+
+\subsection{Syntax}
+As it can be seen in \fref{exsysfsyntax}, terms can now also be:
+\begin{itemize}
+\item Data constructors, denoted by $K$. These are functions that, when applied to terms of the correct type, construct a term of the type $T$ explicitly mentioned in the datatype declaration.
+\item \textbf{TODO: LET, should be RECURSIVE yes?}A \texttt{let}-expression that binds a (type annotated) variable $\tmVar$ to some expression $\term$. In this thesis we have opted for a recursive let: it allows for the expression $\term$ to already refer to the variable $\tmVar$.
+\item A \texttt{case}-expression. \texttt{case}-expressions allow the programmer to pattern match terms against the data constructor $K$ used to generate them, in order to retrieve information on the arguments provided to $K$.
+\end{itemize}
+This extension of System F introduces the notion of a program: a sequence of declarations and a term. In this setting, declarations can only be datatype declarations. These introduce a new type (a System F type, where type variables can be present) as well as data constructors, which are the only way of constructing a term of that type. The typing environment is extended to be able to handle data declarations.
+
+\begin{figure}
+  $\highlight{pgm::= \term\; |\; val;pgm\; |\;data;pgm}\hfill \highlight{program}$\\
+  $\highlight{datadecl::=\mathit{\texttt{data } T\; \tyVar = K \;\overline{\typeF}} }\hfill \highlight{datatype}$\\
+  $\term ::= \tmVar\,|\,\lambda \tmVar:\typeF.\term\,|\,\term_1 \; \term_2 \,|\,\tyAbs{\tyVar}{\term}\,|\,\term\;\typeF \hfill term $\\
+ $\phantom{aaa}|\;\highlight{K} \;|\;\highlight{\mathit{\texttt{let }} \tmVar : \typeF = \term \mathit{\texttt{ in}}} \;|\;\highlight{ \mathit{\texttt{case }} \term_1 \mathit{\texttt{ of }} K \; \overline{\tmVar} \rightarrow \term_2} $\\
+  $\tmVal::= \lambda \tmVar:\typeF.\term \,|\,\tyAbs{\tyVar}{\term}\hfill value$\\
+  $\typeF ::= \tyVar\,|\,\typeF \rightarrow \typeF \,|\,\forall \tyVar.\typeF\;|\; \highlight{T\;\typeF} \hfill type$\\
+  $\tyEnv::=  empty \,|\, \tyEnv, \tmVar:\typeF\,|\, \tyEnv,\tyVar\;|\; \highlight{\tyEnv,K:\typeF}\;|\;\highlight{\tyEnv,T} \hfill environment$\\
+  \caption{Syntax for the extended System F}
+  \label{exsysfsyntax}
+\end{figure}
+\subsection{Typing}
+Declarations are not typed; programs are assigned the type $\type$ assigned to their term  under the \textit{appropriate environment} $\tyEnv$.
+
+The declarations present in the program before the term set the \textit{appropriate environment} under which the term is typed. A datatype declaration $\mathit{\texttt{data } T\; \tyVar = K \;\overline{\type}}$ adds both the type constructor $T$ and the data constructor $K$ bound to its type to the typing environment. To construct a term of type $T\;\typeF_1$, first the type $\type_1$ and then terms of the corresponding types $\overline{[\tyVar\mapsto\typeF_1]\overline{\typeF}}$ need to be applied to $K$.
+
+There are two new typing rules: \textsc{T-Let} and \textsc{T-Case}. The former illustrates the recursive nature of the $\mathit{\texttt{let }} \tmVar : \typeF = \term_1 \mathit{\texttt{ in }\term_2}$ terms: both $\term_1$ and $\term_2$ are typed in the extended environment in which $\tmVar$ is assumed to have type $\typeF$. This recursion allows functions as the one in \ref{foldr} to be expressed in the language.
+
+As for the \textsc{T-Case}, it states that a case expression $\mathit{\texttt{case }} \term_1 \mathit{\texttt{ of }} K \; \overline{\tmVar} \rightarrow \term_2$ has a type $\typeF_2$ if the branch ($\term_2$) has type $\typeF_2$ under the extended environment where the variables $\overline{\tmVar}$ are bound the corresponding types $\overline{\typeF}$, where the type variable $\tyVar$ has been substituted in conformity with the type $(T\;\typeF_1)$ of $\term_1$: $\tyVar \mapsto \typeF_1$. Both of these typing rules are highlighted in \fref{exsysftytm}.
+
+\begin{figure}
+  \includegraphics{exsysfty}
+    \caption{Typing rules for the extended System F's terms}
+  \label{exsysftytm}
+\end{figure}
+
+\subsection{Properties}
+System F achieves what it set out to be: a type-safe language (well-typed terms either evaluate to a value or evaluate forever) which, by allowing parametric polymorphism, lifts unpleasant STLC's restrictions.
+
+It would be convenient to drop System F's type annotations. However, that would make typing undecidable for System F's terms.
+
+In System F, the type variable $\tyVar$ in the type $\tyAbs{\tyVar}{\tyVar \rightarrow \tyVar}$ can refer to any System F type, including itself. The identity function, for instance, has type $\tyAbs{\tyVar}{\tyVar \rightarrow \tyVar}$. Note that it is possible to apply any type to the identity function: $id\;(\tyAbs{\tyVar}{\tyVar \rightarrow \tyVar}$) is a perfectly valid System F term, with type $(\tyAbs{\tyVar}{\tyVar \rightarrow \tyVar}) \rightarrow (\tyAbs{\tyVar}{\tyVar \rightarrow \tyVar})$. In cases like this, where the universal operator is in a nested position of a more complex type $\typeF$, $\typeF$ is known as a higher-rank type.
+
+Without type annotations the types of System F's expressions would have to be inferred. However, it has been proven that there is no algorithm capable of, in general, inferring the type of a language with higher-rank polymorphic types \cite{jones}. In other words, type inference is undecidable for System F.
+
+\subsection{An example}
+Assuming we have declared the datatype $List$ with two data constructors, $[\,]$ and $Cons$, it is now possible to write the function foldlr as shown in \fref{foldr}.
+
+This is a well-known function in the context of functional programming. In languages with type inference, like Haskell, the type abstractions would be absent.
+Suppose the datatype declaration for the type constructor List to be:\\
+$\mathit{\texttt{data } List\; \tyVar = [\;]\;\tyVar\;|\;Cons \;\tyVar\;(\mathit{List}\;\tyVar)}$
+
+According to the typing rules, $foldr$ would then be typed as:\\
+$\tyAbs{\tyVar_1}{\tyAbs{\tyVar_2}{((\tyVar_2 \rightarrow \tyVar_1 \rightarrow \tyVar_2)\rightarrow (\tyVar_2 \rightarrow (List\;\tyVar_1\rightarrow List\;\tyVar_2)))}}$.
+
+\begin{figure}
+  
+  $foldr = \Lambda \tyVar_1 . \Lambda \tyVar_2 . \lambda \tmVar_1:\tyVar_2 \rightarrow \tyVar_1 \rightarrow \tyVar_2 . \lambda \tmVar_2 : \tyVar_2 . \lambda \tmVar_3 : List \, \tyVar_1 .$\\
+  \phantom{foldl aaa}$\mathit{\texttt{case }} \tmVar_3 \mathit{\texttt{ of }}$\\
+  \phantom{foldl aaaaa}$[\;] \phantom{ns a b iii}\rightarrow \tmVar_2$\\
+  \phantom{foldl aaaaa}$Cons \; a \; b \rightarrow foldr \; \tyVar_1 \;\tyVar_2 \; \tmVar_1 \; (\tmVar_1 \; \tmVar_2 \; a)  \; b$
+  
+  
+  \caption{Function $foldr$ in System F}
+  \label{foldr}
+\end{figure}
+
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "thesis"
+%%% End: 
+%evaluaEvaluation rules can now apply only to terms of a determined subset of the set of types. In particular, STLC leverages the partition of types into values and non-values in its evaluation rules. 

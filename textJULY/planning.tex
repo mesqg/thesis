@@ -1,0 +1,32 @@
+\chapter{Problem statement and planning}
+\label{planning}
+\section{Problem statement}
+What I wrote in November remains valid:
+\begin{itemize}
+\item ``This  thesis  is  a  study  of  implicit  type conversions.  The intention is to understand how this mechanism is already employed in Scala, adapt it to have arguably better properties and implement a (prototype) version of it in the KU Leuven's Haskell compiler.  The goal is to improve on Scala's approach by supporting transitivity in the implicit conversions.   Important  aspects  of  this  thesis  are:  how  to  ensure  that  the resolution process remains unambiguous in the presence of transitivity and how to make this extension as easy as possible to work with.''
+\end{itemize}
+We want to allow for implicit conversions with parametric polymorphism and constraints, much in the same way of Haskell's type classes. We are working on a short but powerful set of rules that can express that ``$\forall \tyVar_1 . \forall \tyVar_2 . (\tyVar_1 \rightsquigarrow \tyVar_2 => T \; \tyVar_1 \rightsquigarrow T \;\tyVar_2)$'', for some specific type constructor $T$.
+
+For some cases such as List, we'd like to have these implicit conversion schemes pre-loaded in the compiler.
+\section{Planning}
+The first priority in my thesis now is to finish the syntax directed typing rules. This were written for a language in which implicit conversions are globally scoped and that doesn't allow any ambiguity to be present in the implicit environment.
+
+I then plan to study the KUL's Haskell compiler and implement this extension on it. Time permitting, I would like to study other alternatives: a language with local scoping and/or one which allows for several conversion paths within the same scope but assigns costs to each and chooses the one with lowest.
+
+The algorithms designed should be rigorously studied and the object of proofs about their correctness. I also plan to continuing my study of the relevant literature.
+
+This effort to write the intermediate text made me realize that the writing of the thesis text must continue from the start of the second semester.
+
+The gantt (\fref{gantt}) chart shows this planning.
+\begin{figure}
+  \centering
+  \includegraphics[height=8cm]{gantt}
+  \label{gantt}
+  \caption{My planned time line for the second semester}
+\end{figure}
+
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "thesis"
+%%% End: 

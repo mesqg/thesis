@@ -1,0 +1,21 @@
+\chapter{Conclusion}
+\label{cha:conclusion}
+This thesis proposed extending Haskell with user-defined implicit type conversions, so that the programmer can avoid writting uninteresting code and thus maximizing her \textit{hapinness}. To showcase this feature we have formalized a minimal language TrIC that supports implicit type conversions; afterwards, the text introduces TrICx, a superset of TrIC with support for type classes, making it closer to Haskell.
+
+In spite of the presence of user-defined implicit type conversions in mainstream programming languages like Scala and C\#, TrIC is a trailblazer, as is the only language (to the best of our knowledge) that supports transitivity in user-defined ITC. Furthermore, TrIC supports ...
+\subsubsection{Future Work}
+Future work we believe to be worth investigating includes:
+\begin{itemize}
+\item As discussed in Chapter \ref{cha:4}, instead of rejecting programs if there are more than one ways to convert between two ground types, it would be interesting to assign costs to axioms and use the conversion that minimizes the total cost;
+\item proving this and that;
+\item study interactions with other features and implement on the GHC,
+\item not requiring type annotations: use comlex types inside but shield the user from it or go all out.
+\item user provided limits on transitivity (for efficiency purposes).
+  \item studying optimizations, as for example for the computation of the dominator \cite{tarjan}
+\end{itemize}
+
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "thesis"
+%%% End: 
