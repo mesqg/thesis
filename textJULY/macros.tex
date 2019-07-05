@@ -55,10 +55,10 @@
                                 % Impl conv resolution
 \newcommand{\convconst}[4]      {{#1} \vDash_{ct} {#2}: {#3} \rightsquigarrow {#4}}
 \newcommand{\convX}[3]      {{#2} \rightsquigarrow_{#1} {#3}}
-\newcommand{\convthi}[5]         {{#1} \vDash_{th_i} {#2} \rightsquigarrow {#3};{#4};\highlight{#5}}
+\newcommand{\convthi}[5]         {{#1} \vDash_{th} {#2} \rightsquigarrow {#3};{#4};\highlight{#5}}
 \newcommand{\convthr}[4]         {{#1} \vDash_{th} {#2}\rightsquigarrow {#3};\highlight{#4}}
 \newcommand{\convax}[4]         {{#1} \vDash_{ax} {#2} \rightsquigarrow {#3};\highlight{#4}}
-\newcommand{\convmust}[3]         {{#1} \vDash {#2}\rightsquigarrow {#3}}
+\newcommand{\convmust}[3]         {{#1} \vDash_{th} {#2}\rightsquigarrow {#3}}
                                 % Named Impl conv resolution
 \newcommand{\imResSubs}[5]         {{#1} \vDash_i {#2}:{#3} \rightsquigarrow {#4};\highlight{#5}}
                                 % Impl conv resolution Subs
@@ -74,12 +74,13 @@
 \newcommand{\progTyping}[4] {{#1};{#2} \vdash_p {#3}:{#4}}
 \newcommand{\progTypingCls}[5] {{#1};{#2};{#3} \vdash_p {#4}:{#5}}
 \newcommand{\clsProgTy}[5] {{#1};{#2};{#3} \vdash_p {#4}:{#5}}
-\newcommand{\classTyping}[3] {{#1}; \vdash_{class} {#2}:{#3}}
+\newcommand{\classTyping}[3] {{#1} \vdash_{class} {#2}:{#3}}
 \newcommand{\instTyping}[4] {{#1};{#2} \vdash_{inst} {#3}:{#4}}
 \newcommand{\imEnvBuild}[5] {{#1},{#2},{#3} \vdash_{impl} {#4}:{#5}}
 \newcommand{\dataDTyping}[3] {{#1} \vdash_{data} {#2}:{#3}}
 \newcommand{\tyInfElab}[7] {{#1};{#2} \vdash_{tm} {#3}:{#4};{#5};{#6};\highlight{{#7}}}
 \newcommand{\toptype}[5] {{#1};{#2} \vdash_{tm} {#3}:{#4};\highlight{{#5}}}
+\newcommand{\clstoptype}[6] {{#1};{#2};{#3} \vdash_{tm} {#4}:{#5};{#6}}
 \newcommand{\tyInfTyCls}[9]       {{#1} ; {#2}; {#3} \vdash_{tm} {#4} : {#5} ; {#6} ; {#7} ; {#8};{#9}}
 \newcommand{\namedImRes}[4]         {{#1} \vDash_i {#2}: {#3} \rightsquigarrow {#4}}
 %~~~~~~~~~~~~~~~~~~~~~~~~~

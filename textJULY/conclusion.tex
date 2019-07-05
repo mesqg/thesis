@@ -1,17 +1,22 @@
 \chapter{Conclusion}
-\label{cha:conclusion}
+\label{cha:9}
 This thesis proposed extending Haskell with user-defined implicit type conversions, so that the programmer can avoid writting uninteresting code and thus maximizing her \textit{hapinness}. To showcase this feature we have formalized a minimal language TrIC that supports implicit type conversions; afterwards, the text introduces TrICx, a superset of TrIC with support for type classes, making it closer to Haskell.
 
-In spite of the presence of user-defined implicit type conversions in mainstream programming languages like Scala and C\#, TrIC is a trailblazer, as is the only language (to the best of our knowledge) that supports transitivity in user-defined ITC. Furthermore, TrIC supports ...
+In spite of the presence of user-defined implicit type conversions in mainstream programming languages like Scala and C\#, TrIC is a trailblazer as is the only language (to the best of our knowledge) that supports transitivity in user-defined ITC. Furthermore, TrIC supports parametric polymorphism in the conversions, multiple conditionals (as opposed to Scala's single implicit parameter) and a novel, user-friendly way of locally scoping the conversion axioms. \textbf{It should also be noted that TrICx is complete with respect to the KHC and transparent to all the programs well-typed without ITC.}
+
+The main contributions of this work were the specification and an inference algorithm of the two calculi presented in Chapters \ref{cha:5} and \ref{cha:7}, as well as a the graph-based solver for the conversion constraints. In addition to this text, a fully operational extension of the KHC with compliant with the specifications of TrICx resulted from this thesis.
+
 \subsubsection{Future Work}
 Future work we believe to be worth investigating includes:
 \begin{itemize}
 \item As discussed in Chapter \ref{cha:4}, instead of rejecting programs if there are more than one ways to convert between two ground types, it would be interesting to assign costs to axioms and use the conversion that minimizes the total cost;
-\item proving this and that;
+  Another interesting approach would be to assign costs to each conversion and choosing the implicit conversion with the lowest cost. These costs could be the sum, over the conversion axioms used to compose the conversion, of a function $f$ that assigns a cost to each conversion axiom. Some candidate $f$ functions are the function constantly equal to $1$ (this would mean choosing the conversion that uses less conversion axioms) or equal to a value assigned by the user when introducing an conversion axiom in the program, enabling the user to penalize some less desirable conversions (for example, conversions with information loss).
+  \item ensuring the axioms with conditions and parametric polymorphism (such as the one in Chapter \ref{cha:6}, of type $\forall a, b . j : a \rightsquigarrow b \Rightarrow \text{Wallet}\;a\rightsquigarrow \text{Wallet}\;b$) are homomorphic with respect to the composition, \textit{i.e.}, the converting expression $\term_{\text{CHF}\rightsquigarrow\text{USD}}$ resulting from applying the axiom with the composed condition CHF $\rightsquigarrow$ USD (EUR$\rightsquigarrow$USD $\circ$ CHF $\rightsquigarrow$ EUR) must be equal to the composition of the converting expressions resulting from applying the axiom twice on the simple conditions: $\term_{\text{EUR}\rightsquigarrow\text{USD}}\circ\term_{\text{CHF}\rightsquigarrow\text{EUR}} $. With this property, TrIC should be transformed so that the last example presented in Section \ref{6.4} is accepted, since it can no longer introduce any ambiguity;
+\item proving type safety and backwards compatibility for TrIC;
 \item study interactions with other features and implement on the GHC,
-\item not requiring type annotations: use comlex types inside but shield the user from it or go all out.
+\item not requiring type annotations: use comlex types inside but shield the user from it or go all out and state and prove principal typing;
 \item user provided limits on transitivity (for efficiency purposes).
-  \item studying optimizations, as for example for the computation of the dominator \cite{tarjan}
+  \item studying optimizations, as for example for the computation of the dominator \cite{tarjan} and for the computation of the conversion paths between two ground types. With TrIC's aversion to multiple converting paths, the search must guarantee to find all the possible conversions. However, a modified version of TrIC with costs bound to conversions enables search techniques as the A* \cite{astar}.
 \end{itemize}
 
 

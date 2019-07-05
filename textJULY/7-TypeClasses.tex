@@ -1,23 +1,28 @@
 \chapter{TrICx}
 \label{cha:7}
-This Chapter presents how TrIC can be extended with type classes so as to make it closer to Haskell.
-\section{Brief Overview of Type Classes}
-``\textit{Ad-hoc} polymorphism \cite{strachey} occurs when a function is defined over several types, acting in a different way for each type''. Type Classes, first introduced and described in \cite{adhoc}, are Haskell's approach to support ad-hoc polymorphism.
+This chapter discusses the interaction of ITC with type classes, one of Haskell's core features. We present TrICx, an extension of TrIC with type classes.  In fact, the implementation provided with this thesis enables the use of type classes (since it is an extension of KHC, which supports them).
 
-Type classes speficy a set of functions (each a pair of a name and a type abstracted over a type variable) that must be defined for its members. Bringing back the running example of Chapter \ref{cha:4}, a possible class declaration for a new type class \textit{Currency} could be translated to English as ``to belong to class \textit{Currency}, type $a$ must have defined functions \textit{earn} and \textit{spend}, both of type $a \to a$'.
+The Chapter starts by introducing type classes (Section \ref{7.1}). Then, similarly to Chapter \ref{cha:5}, discusses TrICx syntax, typing rules, type inference and constraint generation (Sections \ref{7.2}, \ref{clstyping} and \ref{7.4}). Afterwards, constraint entailment is addressed (Section \ref{clssolving}) and the translation of a TrICx program is shown (Section \ref{7.6}). The Chapter ends with a discussion of an alternative approach to constraint entailment (Section \ref{7.7}).
+
+\section{Brief Overview of Type Classes}
+\label{7.1}
+As opposed to parametric polymorphims, type classes, first introduced and described in \cite{adhoc}, are Haskell's approach to support ad-hoc polymorphism \cite{strachey}, which is characterized by having a function defined over multiple types and acting in a distinct way, according to the type.
+
+Type classes specify a set of signatures (each a pair of a name and a type abstracted over a type variable) of functions that must be defined for its members.A possible class declaration for a new type class \textit{Currency} could be translated to English as ``to belong to class \textit{Currency}, type $a$ must have defined functions \textit{earn} and \textit{spend}, both of type $a \to a$'.
 
 The assertion \textit{Currency} EUR states the existence of functions \textit{earn} and \textit{spend} of type EUR $\to$ EUR. 
 
 An instance declaration corresponds to an axiom. A \textit{simple axiom} declares a type to be a member of a type class and specifies implementations for the functions required by the type class. An instance declaration for \textit{Currency} EUR implements functions \textit{earn} and \textit{spend} and declares \textit{Currency} EUR to be an axiom.
 
-It is also possible to specify instance declarations for abstract types by specifying (abstract) conditions that must hold. One example with the \textit{Equality} type class is an instance declaration that states ``if there is an instance of \textit{Equality} for some type $a$, then there is an instance for \textit{Equality} for type $[a]$''. This declarations introduces the \textit{logical implication axiom} ``\textit{Equality} $a$ implies \textit{Equality} $[a]$''. This form of axioms specify class constraints and a final simple axiom.
+It is also possible to specify instance declarations for abstract types by requiring (abstract) conditions to hold. One example with the \textit{Equality} type class is an instance declaration that states ``if there is an instance of \textit{Equality} for some type $a$, then there is an instance for \textit{Equality} for type $[a]$''. This declarations introduces the \textit{logical implication axiom} ``\textit{Equality} $a$ implies \textit{Equality} $[a]$''. Logical implication axioms specify class constraints and a final simple axiom.
 
 \section{Syntax}
+\label{7.2}
 \fref{tcsyntax} presents the syntax for a language that extends upon TrIC by supporting type classes (TrICx, for TrIC eXtended). New syntax is introduced for class and instance declarations, for types and for the novel (with respect to this text) program theory. 
 
-Classes consist of a name, a type variable and method. Unlike type classes in the GHC, TrICx does not support multiple type variables, multiple methods nor superclasses, for the sake of brevity of exposure: none of these extensions poses a problem to the ideas specified in this Chapter. In fact, the implementation provided with this thesis supports type classes (since it is an extension of KHC, which supports them). Class declarations mirror these design choices and consist of a name ($TC$) for the class, a type variable $a$, a name for the method $f$ and its type signature $\typeS$.
+Classes consist of a name, a type variable and method. Unlike type classes in the GHC, TrICx does not support multiple type variables, multiple methods nor superclasses, for the sake of brevity of exposure: none of these extensions poses a problem to the ideas specified in this Chapter. Class declarations mirror these design choices and consist of a name ($TC$) for the class, a type variable $a$, a name for the method $f$ and its type signature $\typeS$.
 
-An instance declaration consists of an axiom, consisting of a possibly empty set of class constraints, the class name $TC$ and the type $\type$ of the axiom it introduces; and of an implementation of the $TC$'s method $f$ (which must comply with the type signature in the corresponding class declaration). Class constraints' syntax is identical to the syntax of a simple axiom: a class name and a type. The class constraints in a logical implication axiom are called logical assumptions.
+An instance declaration consists of an axiom, consisting of a (possibly empty) set of class constraints, the class name $TC$ and the type $\type$ of the axiom it introduces; and of an implementation of the $TC$'s method $f$ (which must comply with the type signature in the corresponding class declaration). Class constraints' syntax is identical to the syntax of a simple axiom: a class name and a type. The class constraints in a logical implication axiom are known as logical assumptions.
 
 Furthermore, in addition to TrIC's monotypes and polytypes TrICx has qualified types $\rho$ \cite{qualified, qual2}. These consist of a number of class constraints and a monotype. The definition of polytypes has changed to include universal quantification over qualified types.
 
@@ -28,7 +33,7 @@ Finally, in addition to the typing environment $\tyEnv$ and the implicit environ
 \begin{array}{@{\hspace{0mm}}l@{\hspace{0mm}}}
   pgm ::= \overline{decl};\term:\type\hfill Program\\
   decl ::= data\,|\,\highlight{class}\,|\,\highlight{inst}\\
-  data ::= data\;T\;\tyVar=K\;\overline{\type}\hfill data\;declaration\\
+  data ::= data\;T\;\tyVar=\overline{K_i \;\; \overline{\type_{i_j}}}\hfill data\;declaration\\
   \highlight{class ::=class\; TC\,a\textbf{ where }\{f=\typeS\}} \hfill \highlight{class\;declaration}\\
   \highlight{inst ::=instance\; \overline{TC_i\;\type_i}\Rightarrow TC \,\type\textbf{ where }\{f=\term\}} \hfill \highlight{instance \; declaration}\\
   \\[5mm]
@@ -39,13 +44,14 @@ Finally, in addition to the typing environment $\tyEnv$ and the implicit environ
     \type_{\rightsquigarrow} ::= \type \rightsquigarrow \type\hfill Conversion\;Monotypes\\
   \typeS_{\rightsquigarrow} ::= \forall \overline {\tyVar} . \overline{(j : \type_{\rightsquigarrow})} \Rightarrow \type_{\rightsquigarrow}\hfill Conversion\;Polytypes
   \\[5mm]
-  \term ::= \tmVar\;|\,\lambda \tmVar.\term\;|\,\term_1 \; \term_2\;|\, K \;|\, case \, \term_1 \, of\, \overline{(K_i \tmVar_{i_j}) \rightarrow \term_{i_2}} \hfill Terms\\
+  \term ::= \tmVar\;|\,\lambda \tmVar.\term\;|\,\term_1 \; \term_2\;|\, K \;|\, case \, \term_1 \, of\, \overline{(K_i \overline{\tmVar_{i_j}}) \rightarrow \term_{i_2}} \hfill Terms\\
   \phantom{\term ::}|\, let \, \tmVar : \typeS \, =\, \term_1 \,in\, \term_2  \;|\, locimp \; \term_1 : \typeS_{\rightsquigarrow}\; in\; \term_2
   \\[5mm]
   \imEnv::=\overline{\term : \typeS_{\rightsquigarrow}} \hfill Implicit\;Environment
   \\[5mm]
   \tyEnv::=\bullet\,|\,\tyEnv,\tmVar:\typeS\,|\,\tyEnv,\tyVar\,|\,\tyEnv,K:\typeS\,|\,\tyEnv,T \hfill \phantom{xxxxxxxxxxxxxxx} Typing\; Environment\\[5mm]
-  \highlight{\thEnv::=\overline{\overline{TC_i\;\type_i}\Rightarrow TC\;\type}}\hfill \highlight{Theory\;Environment}\\
+  \highlight{Cls::=\overline{TC_i\;\type_i}\Rightarrow TC\;\type}\hfill \highlight{Constraint\;Scheme}\\
+  \highlight{P ::= \overline{Cls}}\hfill \highlight{Theory\;Environment}
 
   \end{array}
 \]
@@ -55,7 +61,7 @@ Finally, in addition to the typing environment $\tyEnv$ and the implicit environ
 
 \section{Typing}
 \label{clstyping}
-The typing rules for a TrICx program are presented in \fref{clspgmtyping}, where the differences with respect to TrIC have been highlighted. These are similiar to the ones for TrIC (\fref{pgmtyping}) with the addition that class and instance declarations alter, respectively, the typing environment and the program theory under which the program's term is typed.
+The typing rules for a TrICx program are presented in \fref{7pgmtyping}, where the differences with respect to TrIC have been highlighted. These rules are similar to the ones for TrIC (\fref{pgmtyping}) with the addition that class and instance declarations affect, respectively, the typing environment and the program theory under which the program's term is typed.
 
 The typing of class and instance declarations is shown in \fref{7decls}. Class declarations extend the typing environment by binding the function's name to its specified type. Instance declarations extend the program theory $P$ with the triplet of logical assumptions, class name $TC$ and type $\type$ it specifies, as long as there has been a class declaration for $TC$ and the method implementation complies with the method's type specified in the class declaration.
 
@@ -71,7 +77,7 @@ The declarative rules for term typing are visible in \fref{7typing}. When compar
 \begin{array}{@{\hspace{0mm}}c@{\hspace{0mm}}}
 \inferrule*[right=Ann]
            {\progTypingCls{\thEnv}{\imEnv}{\tyEnv}{\overline{data};pgm}{\type}}
-           {\progTypingCls{\thEnv}{\imEnv}{\tyEnv}{\type;\overline{data};pgm}{\type}}
+           {\progTypingCls{\thEnv}{\imEnv}{\tyEnv}{(\overline{data};pgm:\type)}{\type}}
            \\[5mm]           
 \inferrule*[right=Data]
            {\dataDTyping{\tyEnv}{data}{\tyEnv'}\ \\\progTypingCls{\thEnv}{\imEnv}{\tyEnv'}{pgm}{\type}}
@@ -111,7 +117,7 @@ The declarative rules for term typing are visible in \fref{7typing}. When compar
 \end{flushleft}
 \[
 \highlight{\inferrule*[]
-           { }
+           {\bullet\vdash_{ty}\typeS }
            {\classTyping{\tyEnv}{class\, TC\,a\textbf{ where }\{f::\typeS\}}{\tyEnv,f:\forall\tyVar.TC\tyVar\Rightarrow \typeS}}}
 \]
 \begin{flushleft}
@@ -120,11 +126,11 @@ The declarative rules for term typing are visible in \fref{7typing}. When compar
 \end{flushleft}
 \[
 \highlight{\inferrule*[]
-           {\bullet=fv(\type)\\class\;TC\,a\textbf{ where }\{f::\sigma\}\\ \txTerm{\thEnv}{\imEnv}{\tyEnv}{\term}{[\type/\tyVar]\sigma}}
+           {\bullet\vdash_{ty}\type\\class\;TC\,a\textbf{ where }\{f::\sigma\}\\ \progTypingCls{\thEnv}{\imEnv}{\tyEnv}{\term}{[\tyVar\mapsto \type]\sigma}}
            {\instTyping{\thEnv}{\tyEnv}{instance\; \overline{TC_i\;\type_i}\Rightarrow TC \,\type\textbf{ where }\{f=\term\}}{\thEnv, \overline{TC_i\;\type_i}\Rightarrow TC\,\type}}}
 \]
-\label{7decls}
 \caption{Declaration Typing}
+\label{7decls}
 \end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{figure}
@@ -150,7 +156,7 @@ The declarative rules for term typing are visible in \fref{7typing}. When compar
   {
   \txTermCls{\thEnv}{\imEnv}{\tyEnv}{\term_1}{\type_{arg} \to \type_2} \\
   \txTermCls{\thEnv}{\imEnv}{\tyEnv}{\term_2}{\type_1}\\
-  \imRes{\imEnv}{j}{\type_{arg}}{\type_2}
+  \convmust{\imEnv}{\type_{arg}}{\type_2}
   }
   { \txTermCls{\thEnv}{\imEnv}{\tyEnv}{\term_1\, \term_2}{\type_2} }
 
@@ -166,22 +172,24 @@ The declarative rules for term typing are visible in \fref{7typing}. When compar
 
   \inferrule*[right=TmLet]
   {
-  \txTermCls{\thEnv}{\imEnv}{\tyEnv}{\term_1}{\typeS} \\
-  \txTermCls{\thEnv}{\imEnv}{\tyEnv,\term_1:\typeS}{\term_2}{\type_2}
+  \txTermCls{\thEnv}{\imEnv}{\tyEnv,x:\typeS_1}{\term_1}{\typeS_1} \\
+  \txTermCls{\thEnv}{\imEnv}{\tyEnv,\tmVar:\typeS_1}{\term_2}{\type_2}
   }
-  { \txTermCls{\thEnv}{\imEnv}{\tyEnv}{let\,\tmVar=\term_1\,in\,\term_2}{\type_2} }
+  { \txTermCls{\thEnv}{\imEnv}{\tyEnv}{let\,\tmVar:\typeS_1=\term_1\,in\,\term_2}{\type_2} }
 
   \\[5mm]
   \inferrule*[right=TmCase]
-             {(K : \forall a . \overline{\type} \rightarrow T \;a)\in \tyEnv
+             {\overline{(K_i : \forall a . \overline{\type_{i_k}} \rightarrow T \;a)\in \tyEnv}
                \\
                \txTermCls{\thEnv}{\imEnv}{\tyEnv}{e_1}{\type_1}
                \\
-               \txTermCls{\thEnv}{\imEnv}{\tyEnv,\overline{\tmVar}:[a\mapsto b]\overline{\type}}{e_2}{\type_2}
+               \overline{\txTermCls{\thEnv}{\imEnv}{\tyEnv,\overline{\tmVar_{i_j}}:[a\mapsto b]\overline{\type_{i_k}}}{e_i}{\type_i}}
                \\
-               \imRes{\imEnv}{j}{\type_1}{T\,b}
+               \convmust{\imEnv}{\type_1}{T\,b}\\
+               \overline{\convmust{\imEnv}{\type_i}{\type_2}}\\
+               fresh\;b
              }
-             {\txTermCls{\thEnv}{\imEnv}{\tyEnv}{case\;e_1\;of\;(K\;x)\rightarrow e_2}{\type_2}}
+             {\txTermCls{\thEnv}{\imEnv}{\tyEnv}{case\;e_1\;of\;\overline{(K_i\;\overline{x_{i_j}})\rightarrow e_i}}{\type_2}}
 
   \\[5mm]
   \inferrule*[right=TmLocimp]
@@ -199,31 +207,56 @@ The declarative rules for term typing are visible in \fref{7typing}. When compar
              {\txTermCls{\thEnv}{\imEnv}{\tyEnv}{\term}{Cls \Rightarrow \type}\\
                \thEnv \vDash Cls  }
              {\txTermCls{\thEnv}{\imEnv}{\tyEnv}{\term}{\type} }}
+    \\[5mm]
+  \inferrule*[right=Forall Introduction]
+             {\txTermCls{\thEnv}{\imEnv}{\tyEnv,\tyVar}{\term}{\typeS}}
+             {\txTermCls{\thEnv}{\imEnv}{\tyEnv}{\term}{\forall \tyVar.\typeS} }
+             
   \\[5mm]
-  \inferrule*[right=Type Application]
+  \inferrule*[right=Forall Elimination]
              {\txTermCls{\thEnv}{\imEnv}{\tyEnv}{\term}{\forall \tyVar. \typeS}\\
                \tyEnv \vdash_{ty} \type }
              {\txTermCls{\thEnv}{\imEnv}{\tyEnv}{\term}{[\tyVar \mapsto \type]\typeS} }           
-  \\[5mm]
-  \inferrule*[right=Type Abstraction]
-             {\txTermCls{\thEnv}{\imEnv}{\tyEnv,\tyVar}{\term}{\typeS}}
-             {\txTermCls{\thEnv}{\imEnv}{\tyEnv}{\term}{\forall \tyVar.\typeS} }
+
 \end{array}
 \]
+\caption{Term Typing}
 \label{7typing}
-  \caption{Term Typing}
 \end{figure}
-\section{Collecting Constraints}
+\section{Type Inference and Collecting Constraints}
+\label{7.4}
 \begin{figure}
 \begin{flushleft}
-  \namedRuleform{ \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term}{\type}{\eqCts}{\imCts}{\highlight{Cls}}{\term'}}
+  \namedRuleform{ \clsElabTerm{\thEnv}{\imEnv}{\tyEnv}{\term}{\typeS}{\term'}}
+                {}
+\end{flushleft}
+\[
+\inferrule*[]
+           {\Theta_E = unify(E)\\
+             \Theta_Y = dominator(\Theta_E \;Y)\\
+             \varphi = conversions (\Theta_Y  (\Theta_E Y))\\
+             P \vDash_{cts} (\Theta_Y  (\Theta_E C))
+             \\fv(\Theta_Y(\Theta_E(\type')))\subseteq \overline{\tyVar}
+             \\(\Theta_Y(\Theta_E(\type')))=\type
+             \\\tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv,\overline{a}}{\term}{\type'}{E}{Y}{\highlight{C}}{\term'}}
+           {\clstoptype{\thEnv}{\imEnv}{\tyEnv}{\term}{\forall \overline{\tyVar}.\type}{\varphi(\term')}}
+           \]
+           
+
+\caption{TrICx's top-level inference judgment}
+\label{7toplevel}
+\end{figure}
+
+\begin{figure}
+\begin{flushleft}
+  \namedRuleform{ \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term}{\type}{\eqCts}{\imCts}{\highlight{C}}{\term'}}
                 {Type Inference and Partial Translation}
 \end{flushleft}
 \[
 \begin{array}{@{\hspace{0mm}}c@{\hspace{0mm}}}
   \inferrule*[right=Var]
-             {(\tmVar : \forall \overline{\tyVar}.\highlight{\overline{Cls_j \Rightarrow}}\type)\in\tyEnv \\ \overline{b} \; fresh}
-             {\tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\tmVar}{[\overline{\tyVar}\mapsto\overline{b}]\type}{\bullet}{\bullet}{\highlight{\overline{[\overline{\tyVar}\mapsto\overline{b}]Cls_j}}}{\tmVar}}
+             {(\tmVar : \forall \overline{\tyVar}.\highlight{\overline{C_j \Rightarrow}}\type)\in\tyEnv \\ \overline{b} \; fresh}
+             {\tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\tmVar}{[\overline{\tyVar}\mapsto\overline{b}]\type}{\bullet}{\bullet}{\highlight{\overline{[\overline{\tyVar}\mapsto\overline{b}]C_j}}}{\tmVar}}
 
              \quad\quad
              
@@ -233,52 +266,49 @@ The declarative rules for term typing are visible in \fref{7typing}. When compar
             \\[5mm]
 
   \inferrule*[right=Abstraction]
-             {\tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv,\tmVar:\tyVar}{\term}{\type}{\eqCts}{\imCts}{\highlight{Cls}}{\term'}}
-             {\tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\lambda \tmVar . \term}{\tyVar \rightarrow \type}{\eqCts}{\imCts}{\highlight{Cls}}{\term'}}
+             {\tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv,\tmVar:\tyVar}{\term}{\type}{\eqCts}{\imCts}{\highlight{C}}{\term'}}
+             {\tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\lambda \tmVar . \term}{\tyVar \rightarrow \type}{\eqCts}{\imCts}{\highlight{C}}{\term'}}
 
 \\[5mm]
   
   \inferrule*[right=Application]
   {
-  \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term_1}{\type_1}{\eqCts_1}{\imCts_1}{\highlight{Cls_1}}{\term_1'} \\
-  \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term_2}{\type_2}{\eqCts_2}{\imCts_2}{\highlight{Cls_2}}{\term_2'}
-  \\ fresh\;j
+  \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term_1}{\type_1}{\eqCts_1}{\imCts_1}{\highlight{C_1}}{\term_1'} \\
+  \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term_2}{\type_2}{\eqCts_2}{\imCts_2}{\highlight{C_2}}{\term_2'}
+  \\ fresh\;a,\;b,\;j
   }
-  { \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term_1 \term_2}{\tyVar}{\eqCts_1 , \eqCts_2 , (\type_1 \sim b \rightarrow a)}{\imCts_1 ,\imCts_2 , \namedImRes{\imEnv}{j}{\type_2}{b}}{\highlight{Cls_1,Cls_2}}{\term_1'(j \; \term_2')} }
+  { \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term_1 \term_2}{\tyVar}{\eqCts_1 , \eqCts_2 , (\type_1 \sim b \rightarrow a)}{\imCts_1 ,\imCts_2 , (j,\convX{\imEnv}{\type_2}{b})}{\highlight{C_1,C_2}}{\term_1'(j \; \term_2')} }
 %{Cls_1,[\type_2\mapsto b]Cls_2}  
   \\[5mm]
   
   \inferrule*[right=Case]
-             {\overline{(K_i : \forall \overline{a} . \overline{\type} \rightarrow T \;\overline{a})\in \tyEnv}
+             {\overline{(K_i : \forall a . \overline{\type_{i_k}} \rightarrow T \;a)\in \tyEnv}\\
+               \overline{\tyInfTyCls{\thEnv}{\imEnv}{\tyEnv,\overline{\tmVar_{i_j}}:[a \mapsto b]\overline{\type_{i_k}}}{e_{2i}}{\type_i}{E_i}{Y_i}{\highlight{C_i}}{e_{2i}'}} \\ \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{e_1}{\type_1}{E_1}{Y_1}{\highlight{C_1}}{e_1'} 
                \\
-               \tyInfElab{\imEnv}{\tyEnv}{e_1}{\type_1}{E_1}{Y_1}{e_1'}
+               fresh\;b,\,d,\,j_1,\,\overline{j_i}\\
                \\
-               \overline{\tyInfTyCls{\thEnv}{\imEnv}{\tyEnv,\overline{\tmVar_i}:[\overline{a}\mapsto \overline{c_i}]\overline{\type}}{e_{2i}}{\type_i}{E_i}{Y_i}{Cls_i}{e_{2i}'}}
-               \\
-               fresh\;,b\;\overline{c_i},\;d\;,j
-               \\
-               E=E_1,\overline{E_i},\overline{b \sim T\;\overline{c_i}}\\Y=Y_1,\convconst{\imEnv}{j_1}{\type_1}{b},\overline{Y_i},\overline{\convconst{\imEnv}{j_i}{\type_i}{d}}\\
-               \highlight{Cls=Cls_1,\overline{Cls_i}}\\
-               \highlight{\term' = case\;(j\;e_1')\;of\;\overline{(K_i\;\overline{\tmVar})\rightarrow e_{2i}'}}
-             }
-             {\tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{case\;e_1\;of\;\overline{(K_i\;\overline{x})\rightarrow e_{2i}}}{d}{E}{Y}{\highlight{Cls}}{\term'}}
+               E=E_1,\overline{E_i}\\Y=Y_1,(j_1,\convX{\imEnv}{\type_1}{T\;b}),\overline{Y_i},\overline{(j_i,\convX{\imEnv}{\type_i}{d})}\\
+               \highlight{C=C_1,\overline{C_i}}\\ 
+                }
+             {\tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{case\;e_1\;of\;\overline{(K_i\;\overline{x_{i_j}})\rightarrow e_{2i}}}{d}{E}{Y}{\highlight{C}}{case\;(j\;e_1')\;of\;\overline{(K_i' \; \overline{\tmVar_{i_j}'})\rightarrow j_i \;e_{2i}'}}}
 %{Cls=[\type \mapsto b]Cls_1,\overline{[\type_i \mapsto d]Cls_i}}               
 \\[5mm]
   
   \inferrule*[right=Let]
   {
-  \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term_1}{\type_1}{\eqCts_1}{\imCts_1}{\highlight{Cls_1}}{\term_1'} \\
-  \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term_2}{\type_2}{\eqCts_2}{\imCts_2}{\highlight{Cls_2}}{\term_2'}
+  \clsElabTerm{\highlight{\thEnv}}{\imEnv}{\tyEnv}{\term_1}{\type_1}{\term_1'} \\
+  \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv,x:\typeS_1}{\term_2}{\type_2}{\eqCts_2}{\imCts_2}{\highlight{C_2}}{\term_2'}
   }
-  { \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{let\,\tmVar=\term_1\,in\,\term_2}{\tyVar}{\eqCts_1 , \eqCts_2}{\imCts_1 ,\imCts_2}{\highlight{Cls_1,Cls_2}}{let\,\tmVar=\term_1'\,in\,\term_2'} }
+  { \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{let\;\tmVar:\typeS_1=\term_1\,in\,\term_2}{\tyVar}{\eqCts_1 , \eqCts_2}{\imCts_1 ,\imCts_2}{\highlight{C_1,C_2}}{let:\typeS_1\,\tmVar=\term_1'\,in\,\term_2'}}
   \\[5mm]
   
   \inferrule*[right=LocImp]
   {
-  \elabTerm{\thEnv}{\bullet}{\tyEnv,\overline{\tyVar},\overline{j_i :\type_{\sim_{i}}}}{\term_1}{\type_{\rightsquigarrow}}{\term_1'} \\
-  \tyInfTyCls{\highlight{\thEnv}}{\imEnv,i}{\tyEnv}{\term_2}{\type}{\eqCts}{\imCts}{\highlight{Cls}}{\term_2'}
+    \clsElabTerm{\thEnv}{\imEnv}{\tyEnv,\overline{j_i :\type_{s_i}\to\type_{t_i}}}{\term_1}{\forall \overline{a}.\type}{\term_1'} \\
+    unify(fv(\type_{source} \to \type_{target}), \type \sim \type_{source} \to \type_{target})=\theta\\
+  \tyInfTyCls{\highlight{\thEnv}}{\imEnv,\term_1:\forall \overline{\tyVar}.\overline{j_i :\type_{s_i}\rightsquigarrow\type_{t_i}}\Rightarrow\type_{source} \rightsquigarrow \type_{target}}{\tyEnv}{\term_2}{\type}{\eqCts}{\imCts}{\highlight{C}}{\term_2'}
   }
-  { \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{(\iLocal{i}{\forall \overline{\tyVar}.\overline{j_i :\type_{\sim_{i}}}\Rightarrow\type_{\rightsquigarrow}}{\term_1}{\term_2})}{\type}{\eqCts}{\imCts}{\highlight{Cls}}{\term_2'} }
+  { \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{(\iLocal{\forall \overline{\tyVar}.\overline{j_i :\type_{s_i}\rightsquigarrow\type_{t_i}}\Rightarrow\type_{source} \rightsquigarrow \type_{target}}{\term_1}{\term_2})}{\type}{\eqCts}{\imCts}{\highlight{C}}{\term_2'} }
   
 \end{array}
 \]
@@ -286,9 +316,11 @@ The declarative rules for term typing are visible in \fref{7typing}. When compar
 \caption{}
 \label{alg7}
 \end{figure}
-The collection of equality and conversion constraints is identical to the one presented in Chapter \ref{cha:5}. As for the collection of class constraints, it follows an intuitive and standard approach of collecting them from the typing environment $\tyEnv$.
+Type inference and the collection of the constraints is similar to the one presented in Chapter \ref{cha:5}. \fref{7toplevel} presents the top-level rule, which is identical to \fref{toplevel} except for the class constraints and their entailment (the fourth premise). TrICx currently enforces all the class constraints to be entailed. This is reasonable simplification that is straightforward to lift.
 
-According to the \textsc{Var} rule in \fref{alg7}, whenever a term variable $\tmVar$ has a type scheme that specifies class constraints, these are collected according to the ground type $\tmVar$ has been assigned.
+The generation of equality and conversion constraints is the same as TrIC's. As for the collection of class constraints $C$, it follows an intuitive and standard approach of collecting them from the typing environment $\tyEnv$.
+
+According to the \textsc{Var} rule in \fref{alg7}, whenever a term variable $\tmVar$ has a type scheme that specifies class constraints (the binding of such variables occurs during the typing of class declarations), these are collected according to the ground type $\tmVar$ has been assigned.
 
 The other rules are identical to the ones shown in \fref{typeinf} and, regarding the class constraints, they simply accumulate the constraints from their subterms.
 %Note that rules \textsc{App} and \textsc{Case} modify the class constraints collected by its subterms in a completely intuitive manner. If the type $\type_2$ of the operand in an application is implicitly converterted $b$
@@ -296,19 +328,17 @@ The other rules are identical to the ones shown in \fref{typeinf} and, regarding
 \label{clssolving}
 %The logical assumptions $\overline{TC_i\;\type}$ in an axiom introduce the constraint that the program theory must entail (as will be discussed in \ref{clssolving}) the simple of the axioms $TC_i\;\type$.
 
-A first design decision was to solve the class constraints after the equality and conversion constraints. This simplifies the solving process and ensures type classes do not influence type inference by isolating the different features of the language.
+TrICx solves the class constraints after the equality and conversion constraints. This simplifies the solving process and ensures type classes do not influence type inference by isolating the different features of the language.
 
-As inferable from the specification (\fref{7pgmtyping}, \fref{7decls} and \fref{7typing}), only monotypes are inferred for a TrICx program. This means that all the (equality, conversion and class) constraints must be satisfied.
+\textbf{As inferable from the specification (\fref{7pgmtyping}, \fref{7decls} and \fref{7typing}), only monotypes are inferred for a TrICx program. This means that all the (equality, conversion and class) constraints must be satisfied.}
 
 The first step is, as for TrIC, to solve the equality constraints by performing unification on them. The resulting type substitution is then applied to both the conversion and class constraints.
 
-The next step is to entail the conversion constraints exactly as specified in Chapter \ref{cha:6}. The type substitution resulting from the dominator step are then applied to the class constraints.
+Then, the conversion constraints are entailed exactly as specified in Chapter \ref{cha:6}. The type substitution resulting from the dominator step are then applied to the class constraints, which, in turn are (recursively) entailed in the standard way for a HM-based language with type classes, as shown in \fref{clsentailment}.
 
-As for class constraints, these are entailed in the standard way for a HM-based language with type classes. The absence of superclasses and of overlapping instances simplifies the entailment process as no backtracking is necessary.
+In order to entail a class constraint $TC\;\type$, the program theory $P$ is traversed in search of an axiom $\overline{TC_{i_j}\;\type_{i_j}}\Rightarrow TC_i\;\type_i$ such that its head $TC_i\;\type_i$ can be unified with $TC\;\type$. Since at most one applies (overlapping instances are not allowed, which is a common restriction, enforced, for example, in the GHC), no backtracking is necessary, and thus a class constraint is entailable if and only if the logical assumptions $\overline{TC_{i_j}\;\type_{i_j}}$ are entailable. Keep in mind that each of these is simply a class constraint.
 
-These constraints are (recursively) entailed as shown in \fref{clsentailment}. To entail a class constraint $TC\;\type$, the program theory $P$ is traversed in the search for an axiom $\overline{TC_{i_j}\;\type_{i_j}}\Rightarrow TC_i\;\type_i$ such that its head $TC_i\;\type_i$ can be unified with $TC\;\type$. Since at most one applies, the class constraint is entailable if and only if the logical assumptions $\overline{TC_{i_j}\;\type_{i_j}}$ are entailable. Keep in mind that each of these is simply a class constraint.
-
-Rules \textsc{CtsStop} and \textsc{CtsStep} determine that a set of class constraints is entailable if it is possible to recursively entail all the logical assumptions that arise from entailing each class constraint.
+Rules \textsc{CtsStop} and \textsc{CtsStep} determine the entailability of a set of class constraints. A set is entailable if it is possible to recursively entail all the logical assumptions that arise from entailing each class constraint.
 
 \begin{figure}
 \begin{flushleft}
@@ -318,20 +348,18 @@ Rules \textsc{CtsStop} and \textsc{CtsStep} determine that a set of class constr
   \[
 \begin{array}{@{\hspace{0mm}}l@{\hspace{0mm}}}
  \inferrule*[right=CtsStop]
+  {  }
   {
-    \forall (TC_i \; \type_i \; \in Cls) :\;  P \vDash_{ct} TC_i \; \type_i ; \bullet
-  }
-  {
-    P \vDash_{cts} Cls %\overline{TC_i \; \type_i}
+    P \vDash_{cts} \bullet %\overline{TC_i \; \type_i}
   }
   \\[5mm]
    \inferrule*[right=CtsStep]
   {
-    \forall \;TC_i \; \type_i\;\in Cls :\;  P \vDash_{ct} TC_i \; \type_i ; \overline{TC_{i_j} \; \type_{i_j}}\\
-    P \vDash_{cts} \overline{TC_{i_j} \; \type_{i_j}}
+    P \vDash_{ct} TC_i \; \type_i ; \overline{TC_{i_j} \; \type_{i_j}}\\
+    P \vDash_{cts} C, \overline{TC_{i_j} \; \type_{i_j}}
   }
   {
-    P \vDash_{cts} Cls%\overline{TC_i \; \type_i}
+    P \vDash_{cts} C, TC_i \; \type_i
   }
 \end{array}
 \]
@@ -345,64 +373,73 @@ Rules \textsc{CtsStop} and \textsc{CtsStep} determine that a set of class constr
   \inferrule*[right=Constraint]
   {
     (\forall \overline{a} . \overline{TC_i \; \type_i} \Rightarrow TC \; \type_2) \in P\\
-    \theta = unify (\type_1 \sim \type_2)\\
-    P \vDash_{cts} \theta(\overline{TC_i \; \type_i})
+    \type_1 = [ fv(\type_2) \mapsto \overline{\type_j}] \type_2\\
+    %P \vDash_{cts} [ fv(\type_2) \mapsto \overline{\type_j}](\overline{TC_i \; \type_i})
   }
   {
-    P \vDash_{ct} TC \; \type_1 ; \theta(\overline{TC_i \; \type_i})
+    P \vDash_{ct} TC \; \type_1 ; [ fv(\type_2) \mapsto \overline{\type_j}](\overline{TC_i \; \type_i})
   }
   \end{array}
 \]
   \caption{TrICx Type Class Constraints Solving}
   \label{clsentailment}
 \end{figure}
-\subsection{Alternative Design}
-
-This approach to solve each sort of constraint seperately will cause rejection of some programs that could, due to their class constraints, only be fixed in one way. Because these constraints are invisible to our conversion constraint solver, it may find the conversion constraints ambiguous and as such reject the program.
-
-Alternatively, more programs will be elaborated unambiguously and thus accepted if we solve class constraints and conversion constraints simultaneously. When trying to resolve what type to instatiate a type variable $a$ with in the grounding of the implicit conversions, the first step is, as before, to compute the common types, \textit{i.e.} reachable from every source type. Afterwards, only the types that satisfy all the class constraints that placed upon $a$ are elegible to substitute $a$. The algorithm to instantiate $a$ then proceeds as before.
 
 \section{Example}
+\label{7.6}
 \begin{eg}
      \[
 \begin{array}{@{\hspace{0mm}}l@{\hspace{0mm}}}
-  data\;\text{Olives}=\text{BlackOlives}\;|\;\text{GreenOlives};\\
+
   data\;\text{DKK}=K_{\text{DKK}}\; Float;\\
   data\;\text{CHF}=K_{\text{CHF}}\; Float;\\
   data\;\text{EUR}=K_{\text{EUR}}\; Float;\\
   data\;\text{Wallet}\;\tyVar=K_{\text{Wallet}}\; \tyVar \; \tyVar;\\[3mm]
   class\;Total\;a\;where\\\phantom{xx}total :: a \to EUR \\[3mm]
   instance\;Total\;(\text{Wallet EUR})\;where\\\phantom{xx} total=\lambda \tmVar. case\;\tmVar\; of\;K_{\text{Wallet}}\;x_1\;x_2 \to K_{\text{EUR}} (x_1+x_2)\\[3mm]
-  \monolocal{i_1}{\text{DKK}}{\text{EUR}}{\lambda \tmVar . K_{\text{EUR}}\;3.2}\\
-  \monolocal{i_2}{\text{EUR}}{\text{Olives}}{\lambda \tmVar . \text{GreenOlives}}\\
-  locimp\;i_3 :\forall a, b . j : a \rightsquigarrow b \Rightarrow \text{Wallet}\;a\rightsquigarrow \text{Wallet}\;b=\\
-  \phantom{xx}\lambda \tmVar. case\;\tmVar\; of\;K_{\text{Wallet}}\;x_1\;x_2 \to K_{\text{Wallet}} (j\;x_1)\;(j\;x_2)\;in \\
-  total\;(\monolocal{i_l}{\text{CHF}}{\text{EUR}}{\lambda \tmVar . K_{\text{EUR}}\;5.0}\\ \phantom{xx}(K_{\text{Wallet}}\;(K_{\text{DKK}}\;6.3)\; K_{\text{CHF}}\;3.1415))
+  \monolocal{\text{DKK}}{\text{EUR}}{\lambda \tmVar . K_{\text{EUR}}\;3.2}\\
+  locimp\; \lambda \tmVar. case\;\tmVar\; of\;K_{\text{Wallet}}\;x_1\;x_2 \to K_{\text{Wallet}} (j\;x_1)\;(j\;x_2)\\ :\forall a, b . j : a \rightsquigarrow b \Rightarrow \text{Wallet}\;a\rightsquigarrow \text{Wallet}\;in\\
+  total\;(\monolocal{\text{CHF}}{\text{EUR}}{\lambda \tmVar . K_{\text{EUR}}\;5.0}\\ \phantom{xx}(K_{\text{Wallet}}\;(K_{\text{DKK}}\;6.3)\; (K_{\text{CHF}}\;3.1415)))
   \\
   :*:\text{EUR}
 \end{array}
 \]
-%\caption{A more complex TrIC program}
+\caption{A TrICx program}
 \label{eg7}
 \end{eg}
 
-As an example, consider the program in example \ref{eg7}. The collected equality constraints are \{$Float \to \text{DKK} \sim b_1 \to b_2, Float \to \text{CHF} \sim b_3 \to b_4,a_1 \to a_1 \to \text{Wallet} \; a_1 \sim b_5 \to b_6, b_6 \sim b_7 \to b_8, a_2 \to \text{EUR} \sim b_9 \to b_{10}$\}; and in the set of conversion constraints are: \{$\convconst{\imEnv_2}{j_1}{Float}{b_1}$, $\convconst{\imEnv_2}{j_2}{Float}{b_3}$, $\convconst{\imEnv_2}{j_3}{b_2}{b_5}$, $\convconst{\imEnv_2}{j_4}{b_2}{b_7}$, $\convconst{\imEnv_1}{j_5}{b_8}{b_9}$ \}. The only class constraint is \{$Total\;a_2$\}. Finally, the constraint resulting from the user-given type: \{EUR $\sim b_{10}$\}.
+Consider the program in Example \ref{eg7}. The collected equality constraints are \{$Float \to \text{DKK} \sim b_1 \to b_2, Float \to \text{CHF} \sim b_3 \to b_4,a_1 \to a_1 \to \text{Wallet} \; a_1 \sim b_5 \to b_6, b_6 \sim b_7 \to b_8, a_2 \to \text{EUR} \sim b_9 \to b_{10}$\}; and the set of conversion constraints is: \{$(j_1,\convX{\imEnv_2}{Float}{b_1})$, $(j_2,\convX{\imEnv_2}{Float}{b_3})$, $(j_3,\convX{\imEnv_2}{b_2}{b_5})$, $(j_4,\convconst{\imEnv_2}{b_2}{b_7})$, $(j_5,\convX{\imEnv_1}{b_8}{b_9})$ \}, with $I_1=\{({\lambda \tmVar . K_{\text{EUR}}\;3.2}:\text{DKK}\to\text{EUR}, \lambda \tmVar. case\;\tmVar\; of\;K_{\text{Wallet}}\;x_1\;x_2 \to K_{\text{Wallet}} (j\;x_1)\;(j\;x_2)) : (\forall a, b . j : a \rightsquigarrow b \Rightarrow \text{Wallet}\;a\rightsquigarrow \text{Wallet})\}$ and $I_2=I_1,\{{\lambda \tmVar . K_{\text{EUR}}\;5.0}:\text{CHF}\to\text{EUR}\}$. The only class constraint is \{$Total\;a_2$\}. Finally, the equality constraint resulting from the user-provided annotation is \{EUR $\sim b_{10}$\}.
 
-Performing unification on the equality constraints yields the substitution $\theta = [b_1 \mapsto Float, \;b_2 \mapsto \text{DKK}, \;b_3 \mapsto Float, \;b_4 \mapsto \text{CHF}, \;b_5 \mapsto a_1, \;b_6 \mapsto a_1 \to \text{Wallet}\;a_1, \;b_7 \mapsto a_1, \;b_8 \mapsto \text{Wallet }a_1, \;b_9 \mapsto a_2, \;b_{10} \mapsto \text{EUR}]$.
+Performing unification on the equality constraints yields the substitution $\Theta = [b_1 \mapsto Float, \;b_2 \mapsto \text{DKK}, \;b_3 \mapsto Float, \;b_4 \mapsto \text{CHF}, \;b_5 \mapsto a_1, \;b_6 \mapsto a_1 \to \text{Wallet}\;a_1, \;b_7 \mapsto a_1, \;b_8 \mapsto \text{Wallet }a_1, \;b_9 \mapsto a_2, \;b_{10} \mapsto \text{EUR}]$.
 
-Applying $\theta$ to the conversion and class constraints results in \{$\convconst{\imEnv_2}{j_1}{Float}{Float}$, $\convconst{\imEnv_2}{j_2}{Float}{Float}$, $\convconst{\imEnv_2}{j_3}{\text{DKK}}{a_1}$, $\convconst{\imEnv_2}{j_4}{\text{CHF}}{a_1}$, $\convconst{\imEnv_1}{j_5}{\text{Wallet }a_1}{a_2}$ \} and \{$Total\;a_2$\}, respectively.
+Applying $\Theta$ to the conversion and class constraints results in \{$(j_1,\convX{\imEnv_2}{Float}{Float})$, $(j_2,\convX{\imEnv_2}{Float}{Float})$, $(j_3,\convX{\imEnv_2}{\text{DKK}}{a_1})$, $(j_4,\convX{\imEnv_2}{\text{CHF}}{a_1})$, $(j_5,\convX{\imEnv_1}{\text{Wallet }a_1}{a_2})$ \} and \{$Total\;a_2$\}, respectively.
 
-To instantiate the type variables present in conversion constraints we plot the graph and note that $j_3$ and $j_4$ take precedence in relation to $j_5$. The finding the dominator step for constraints $j_3$ and $j_4$ results in $a_1$ being substituted by EUR. Afterwards, the conversion constraint $j_5$ results in $a_2$ being substituted by Wallet EUR. The subsequentprocess of constructing the conversion and substituting the place holding variables in the program is completely identical to the one described in Chapter \ref{cha:6}.
+Afterwards, constraints with type variables are plotted (see Chapter \ref{cha:6}) resulting in the graph shown in \fref{7a}, where the edge with the circle symbolizes the partial order on the components: the component with the circle has lower priority. The conversions bound to $j_3$ and $j_4$ take precedence in relation to one bound to $j_5$, since source type in the latter contains a type variable present as the target type of the formers. Computing the dominator of constraints bound to $j_3$ and $j_4$ results in $a_1$ being substituted by EUR. Then, Wallet EUR is found to be the appropriate substitute for $a_2$. The subsequent process of constructing the conversion and substituting the place holding variables in the program is completely identical to the one described in Chapter \ref{cha:6}.
 
+\begin{figure}
+  \centering
+  \begin{subfigure}[b]{.30\textwidth}
+    \centering
+    \includegraphics[width=.8\textwidth]{7a}
+    \caption{Constraints with type variables from Example \ref{eg7}}
+    \label{7a}
+  \end{subfigure}
+  \begin{subfigure}[b]{.30\textwidth}
+    \centering
+    \includegraphics[width=.8\textwidth]{7b}
+    \caption{Alternative Implicit Environment}
+    \label{7b}
+  \end{subfigure}
+  \caption{ }
+\end{figure}
+  
 Applying these substitutions to the class constraint(s), results in \{$Total$ Wallet EUR\}. This constraint is trivially entailed by the program theory $P = \{Total$ Wallet EUR\}.
 
-\textbf{TODO example in which the other approach would work.}
-
-The translation of the program in \fref{complex7} into the subset of TrICx without implicit conversions (which is also a subset of Haskell) is shown in \fref{hm7}.
+The translation of the program in Example \ref{eg7} into the subset of TrICx without implicit conversions (which is also a subset of Haskell) is shown in \fref{hm7}.
 \begin{figure}
      \[
 \begin{array}{@{\hspace{0mm}}l@{\hspace{0mm}}}
-  data\;\text{Olives}=\text{BlackOlives}\;|\;\text{GreenOlives};\\
+
   data\;\text{DKK}=K_{\text{DKK}}\; Float;\\
   data\;\text{CHF}=K_{\text{CHF}}\; Float;\\
   data\;\text{EUR}=K_{\text{EUR}}\; Float;\\
@@ -417,15 +454,14 @@ The translation of the program in \fref{complex7} into the subset of TrICx witho
 \caption{A more complex TrIC program}
 \label{hm7}
 \end{figure}
-%{(K : \forall a . \overline{\type} \rightarrow T \;a)\in \tyEnv
-%               \\
-%               \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv}{e_1}{\type_1}{E_1}{Y%_1}{\highlight{Cls_1}}{e_1'}
-%               \\
-%               \tyInfTyCls{\highlight{\thEnv}}{\imEnv}{\tyEnv,\overline{\tmVar}:[a\%mapsto b]\overline{\type}}{e_2}{\type_2}{E_2}{Y_2}{\highlight{Cls_2}}{e_2'}
- %              \\
-  %             fresh\;j
-   %          }
 
-%{case\;e_1\;of\;(K\;x)\rightarrow e_2}
-%{Y_1,Y_2,\namedImRes{\imEnv}{j}{\type_1}{T\;b}}
-%{case\;(j\;e_1')\;of\;(K\;\tmVar)\rightarrow e_2'}
+\section{Alternative Design}
+\label{7.7}
+
+This approach to solve each sort of constraint separately will cause rejection of some programs that could, due to their class constraints, only be fixed in one way. Because these constraints are invisible to our conversion constraint solver, it may (correctly) find the conversion constraints ambiguous and as such reject the program.
+
+Alternatively, more programs will be elaborated unambiguously and thus accepted if the class and conversion constraints are entailed simultaneously. When trying to resolve what type to instantiate a type variable $a$ with in the grounding of the implicit conversions, the first step is, as before, to compute the common types, \textit{i.e.} reachable from every source type. Afterwards, only the types that satisfy all the class constraints that placed upon $a$ are eligible to substitute $a$. The algorithm to instantiate $a$ then proceeds as before.
+
+As a practical example, consider the program in Example \ref{eg7}, and the alternative implicit environment specified in \fref{7b}. The approach presented in Section \ref{clssolving} would entail the equality and conversion constraints and assign type Wallet USD to the argument of $total$, resulting in unsatisfiable class constraints. On the other hand, the approach of this Section would succeed because it would convert both subterms of the Wallet constructor to EUR, since Wallet USD would be immediately disqualified from being the dominator for not being an instance of \textit{Total}.
+
+\textbf{However, we have opted by Section \ref{clssolving} because it allows for type classes to remain a feature orthogonal to type inference, as in Haskell.}

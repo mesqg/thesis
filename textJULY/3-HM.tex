@@ -1,14 +1,16 @@
 \chapter{Hindley-Milner}
 \label{cha:3}
+\textbf{HM is a predicative restriction on System F}
 This chapter introduces the Hindley-Milner type system (HM) \cite{damas}. This type system omits type annotations and has no explicit abstraction of terms over types nor application of types to terms. Nonetheless, there is an algorithm that is capable of inferring the type of HM's expressions.
 
 Any HM expression can be translated to System F but the converse does not hold: HM is not as expressive as System F. However, it is expressive enough to support parametric polymorphism.
 
-Section \ref{HM syntax} introduces its syntax, Section \ref{Typing} its typing rules, Section \ref{Type inference} the type inference mechanism, Section \ref{Operational Sematics} its operational semantics and, finally, Section \ref{Elaboration} is concerned with the elaboration of HM programs to System F.
+Section \ref{3syntax} introduces its syntax, Section \ref{3typing} its typing rules, Section \ref{3inference} the type inference mechanism, Section \ref{3op} its operational semantics and, finally, Section \ref{3elab} is concerned with the elaboration of HM programs to System F.
 \section{HM syntax}
-The syntax for HM is presented in \fref{hmsyntax}, including the counterparts of the extensions presented in \ref{System F extended}. While most extensions are orthogonal to the type system, it is worth mentioning that the \textit{let} terms are the only construct that enables polymorphic polymorphism. Overall, the syntax is simpler than System F's: there are no type annotations, explicit types, type abstraction nor type application.
+\label{3syntax}
+The syntax for HM is presented in \fref{hmsyntax}, including the counterparts of the extensions presented in \ref{System F extended}. It is worth mentioning that the \textit{let} terms are the only construct that enables polymorphic polymorphism. Overall, the syntax is simpler than System F's: there are no type annotations, explicit types, type abstraction nor type application.
 
-What in new in HM is the further specialization of types. Types can now be monotypes or polytypes (also known as type schemes). Monotypes are either type variables (type variables only ceased to be explicit in the syntax of the terms, they are still needed), function types or base types  polytypes are either a monotype or a type abstraction. This distinction is used to restrict type expressiveness (when compared to System F) by placing all the ``$\forall$'s'' upfront, in order to achieve decidable type inference. Regarding the environment, it is same as the one for System F.
+What is new in HM is the further specialization of types. Types can now be monotypes or polytypes (also known as type schemes). Monotypes are either type variables (type variables only ceased to be explicit in the syntax of the terms, they are still needed), function types or base types. Polytypes are either a monotype or a type abstraction. This distinction is used to restrict type expressiveness (when compared to System F) by placing all the ``$\forall$'s'' upfront, in order to achieve decidable type inference. Regarding the environment, it is same as the one for System F.
 
 
 
@@ -29,14 +31,46 @@ What in new in HM is the further specialization of types. Types can now be monot
 \end{figure}
 
 \section{Typing}
-A HM type is said to be well-formed if all its type variables are in the typing environment. The typing rules (shown in \fref{hmty}) are very similar to System F's, except that:
+\label{3typing}
+A HM type is well-formed ``$\tyEnv \vdash_{ty} \typeS$'' if all its type variables are in the typing environment as the type constructors are in scope, as shown in \fref{tywf}. The typing rules (shown in \fref{hmty}) are very similar to System F's, except that:
 \begin{itemize}
-\item Type annotations (in the lambda abstractions) are now gone.
+\item \textbf{Monotype restrictions in T-Abs, App, Let case}
 \item In the counterparts to the rules regarding type abstraction and application in System F, the term in the premises and in the conclusion is the same. Think of this as type abstraction over some term $\term$ and type application of some type $\type$ to term $\term$ being implicit.
 \end{itemize}
-\textbf{Another different aspect is that the typing rules now assign polytypes to terms, instead of System F's more general types. In particular, note that all but the last two rules (\textsc{T-TAbs} and \textsc{T-TApp}) assign the even more restricted monotypes to terms, effectively enforcing that all the ``$\forall$'''s are placed upfront.} WHAT about the first 2...
+Another different aspect is that the typing rules now assign polytypes to terms, instead of System F's more general types. In particular, note that all but the last two rules (\textsc{T-TAbs} and \textsc{T-TApp}) assign the even more restricted monotypes to terms, effectively enforcing that all the ``$\forall$'''s are placed upfront. \textbf{Note that vars have to go throught T-TApp before T-App due to restriction in T-App}.
+ \begin{figure}
+  \centering
   
+\begin{flushleft}
+  \item \ruleform{ \tyEnv \vdash_{ty}\typeS }
+\end{flushleft}
+\[
+\begin{array}{@{\hspace{0mm}}c@{\hspace{0mm}}}
 
+  \inferrule*[right=Ty-Var]
+  { \tyVar \in \tyEnv }
+  { \tyEnv \vdash_{ty} \tyVar }
+  \quad \quad
+  \inferrule*[right=Ty-Cons]
+  { T \in \tyEnv }
+  { \tyEnv \vdash_{ty} T }
+  \\[5mm]
+  \inferrule*[right=Ty-Arr]
+  { \tyEnv \vdash_{ty} \type_1 \\\tyEnv \vdash_{ty} \type_2 }
+  { \tyEnv \vdash_{ty} \type_1 \to \type_2 }
+  \quad \quad
+  \inferrule*[right=Ty-All]
+  { \tyEnv,a \vdash_{ty} \typeS \\ a \notin \tyEnv  }
+  { \tyEnv \vdash_{ty} \forall a. \typeS }
+  \quad \quad
+  
+\end{array}
+\]
+  \caption{HM's type well-formedness}
+  \label{tywf}
+ \end{figure}
+
+ 
 \begin{figure}
   \centering
   
@@ -68,8 +102,8 @@ A HM type is said to be well-formed if all its type variables are in the typing 
   \\[5mm]
   
   \inferrule*[right=T-Let]
-  { x\notin dom(\tyEnv) \\ \tyEnv \vdash_{tm} \term_1 : \typeS \\ \tyEnv, \tmVar:\typeS \vdash_{ty} \term_2 : \type}
-  { \tyEnv \vdash_{tm} (let\; \tmVar = \term_1 \; in \;\term_2) : \type}
+  { x\notin dom(\tyEnv) \\ \tyEnv, \tmVar:\typeS \vdash_{tm} \term_1 : \typeS \\ \tyEnv, \tmVar:\typeS \vdash_{ty} \term_2 : \type}
+  { \tyEnv \vdash_{tm} (let\; \tmVar:\typeS = \term_1 \; in \;\term_2) : \type}
   \\[5mm]
   
   \inferrule*[right=T-Case]
@@ -79,7 +113,7 @@ A HM type is said to be well-formed if all its type variables are in the typing 
                \\
                \overline{\txTerm{\imEnv}{\tyEnv,\overline{\tmVar_{i_j} :[a\mapsto \type_1]\type_{i_j}}}{e_i}{\type_2}}
                \\
-               \overline{x_{i_j}} \notin dom(\tyEnv)\\smtg\; about \;exhaustive\; K_i?
+               \overline{x_{i_j}} \notin dom(\tyEnv)
              }
                {\txTerm{\imEnv}{\tyEnv}{case\;e_1\;of\;\overline{(K_i\;\overline{x_{i_j}})\rightarrow e_i}}{\type_2}}
                  \\[5mm]
@@ -101,23 +135,24 @@ A HM type is said to be well-formed if all its type variables are in the typing 
 \end{figure}
 
 \section{Type inference}
-Type inference means that the types of the expressions will be automatically inferred by the compiler. Algorithm W (to be described in this section) is responsible for this feature in HM. It infers the types in two separate steps: first it generates a type (with unresolved type variables) and a set of constraints of the form $\type_1 \sim \type_2$, specifying that the types $\type_1$ and $\type_2$ must be the same; afterwards, the constraints are solved, a substitution is generated and applied to the previously inferred types, instantiating the necessary type variables.
+\label{3inference}
+Type inference means that the types of the expressions will be automatically inferred by the compiler. Algorithm W (to be described in this section) is responsible for this feature in HM. It infers the types in two separate steps: first it generates a type (with unresolved type variables) and a set of constraints of the form $\type_1 \sim \type_2$, specifying that the types $\type_1$ and $\type_2$ must be the unifiable; afterwards, the constraints are solved, a substitution is generated and applied to the previously inferred types, instantiating the necessary type variables.
 \subsection{Constraint Generation}
-The first part of algorithm W, concerned with the equality constraint generation is shown if \fref{hmtyinf}. The highlighted part is important for the translation of HM terms to System F (Section \ref{hmelab}), not at the moment. The relation ``$\tyEnv \vdash_{tm} \term : \type ;\;E$'', which should be read as ``under the environment $\tyEnv$, gets assigned type $\type$ assuming the equality constraints $E$ are satisfied'', reflects the behavior of the first part of the algorithm.
+The first part of algorithm W, concerned with the equality constraint generation is shown in \fref{hmtyinf}. The highlighted part is important for the translation of HM terms to System F (Section \ref{3elab}), but can be safely ignored for now. The relation ``$\tyEnv \vdash_{tm} \term : \type ;\;E$'', which should be read as ``under the environment $\tyEnv$, gets assigned type $\type$ assuming the equality constraints $E$ are satisfied'', reflects the behavior of the first part of the algorithm.
 
-The \textsc{T-Var} rule looks up the variable $x$ in the typing environment. If the variable is bound to a polytype $\forall \overline{a}.\type$, fresh type variables $\overline{b}$ are created to substitute the variables $\overline{a}$ in $\type$. This assures that different occurrences of $x$ will be assigned different types. If this were not the case, the step of solving the equality constraints might fail due to the unification of types that do not need to be equal. Suppose the polymorphic function $id=\lambda x. x$ is applied, in different places to $3$ and to 'c'. The type of the variable $x$ needs to be unified with the type of $3$ in one case and with the type of 'c' in the other, but not to both simultaneously (which would be the meaning of the equality constraints if the variables were not freshened up).
+The \textsc{T-Var} rule looks up the variable $x$ in the typing environment. If the variable is bound to a polytype $\forall \overline{a}.\type$, fresh type variables $\overline{b}$ are created to substitute the variables $\overline{a}$ in $\type$. This assures that different occurrences of $x$ will be assigned different types. If this were not the case, the step of solving the equality constraints could fail due to the unification of types that do not need to be equal. Suppose the polymorphic function $id=\lambda x. x$ is applied, in different places, to $3$ and to `c'. The type of the variable $x$ needs to be unified with the type of $3$ in one case and with the type of 'c' in the other, but not to both simultaneously (which would be the meaning of the equality constraints if the variables were not refreshed).
 
 As for lambda abstractions, \textsc{T-Abs}, since there is no type annotation on the bound variable, a fresh type variable is used both to type the abstraction and to be bound to the variable for the typing of the body of the abstraction. This type variable will be substituted by the correct type after solving the constraints.
 
 For the case of an application $\term_1\;\term_2$, \textsc{T-App} first performs the first step of type inference on both its subterms. For $\term_1\;\term_2$ to be well-typed, the type $\type_1$ of $\term_1$ is necessarily a function type from the type $\type_2$ of $\term_2$ to some type unknown for now. As such, the constraint $\type_1 \sim \type_2 \to a$ is generated, where the new fresh type variable $a$ represents the result type.
 
-\textit{Let} expressions simply accumulate the equality constraints of its subterms. Finally, \textit{case} expressions constrain its scrutinee to be an instantiation of the type of type specified by the data constructors on the patterns and all its alternatives to have the same type.
+\textit{Let} expressions simply accumulate the equality constraints of its subterms. Finally, \textit{case} expressions constrain its scrutinee to be \textbf{an instantiation of the type of type specified by the data constructors on the patterns} and all its alternatives to have the same type.
 
 %This algorithm assigns to each term its most general type.
 \begin{figure}
 \begin{flushleft}  
 
-  \namedRuleform{ \tyEnv \vdash_{tm} \term : \type \highlight{;\term^F}}
+  \namedRuleform{ \tyEnv \vdash_{tm} \term : \typeS \highlight{;\term^F}}
                 {Top-Level Type Inference with Elaboration}
 \end{flushleft}
 
@@ -194,8 +229,9 @@ For the case of an application $\term_1\;\term_2$, \textsc{T-App} first performs
   
 \end{array}
 \]
-\label{hmtyinf}
 \caption{HM type inference with elaboration (highlighted)}
+\label{hmtyinf}
+
 \end{figure}
 
 
@@ -205,7 +241,7 @@ Regarding solving the constraints, Martelli and Montanari's unification algorith
 
 The fore mentioned type substitution is recursively constructed by sequentially considering the equality constraints. If both types are the same type variable $a\sim a$ the constraint is already trivially entailed and is disregarded. If only one of the types is a type variable $a$, then $\theta$ must map $a$ to the other type $\type$. However, $a$ can not be a free variable of $\type$. Otherwise, this substitution would cause $\type$ to be an infinite type (\textit{eg.} $a \sim [a]$ would lead to substituting $a$ by the infinite type $[...[a]...]$).
 
-Equality constraints between two function types are transformed into two simpler constraints (one for the argument type and another for the result type) that should be solved sequentially. These will not become independent as the type substitution resulting from unifying the first will be applied to the second before its unification. Otherwise, the equality constraint $a\to a \sim B \to C$ would be entailable for any predefined types $B$ and $C$, which is clearly undesirable.
+Equality constraints between two function types are destructed into two simpler constraints (one for the argument type and another for the result type) that should be solved sequentially. These will not become independent as the type substitution resulting from unifying the first will be applied to the second before its unification. Otherwise, the equality constraint $a\to a \sim B \to C$ would be entailable for any predefined types $B$ and $C$, which is clearly undesirable.
 \begin{figure}
   \begin{flushleft}  
 
@@ -223,12 +259,11 @@ Equality constraints between two function types are transformed into two simpler
   \label{unification}
 \end{figure}
 \section{Operational Semantics}
+\label{3op}
 The evaluation rules for HM are completely identical to the ones of STLC (Section \ref{stlceval}).
 \section{Elaboration}
-\label{hmelab}
-The elaboration of a HM to System F is presented highlighted in \fref{hmtyinf}.
-
-Because System F has explicit type abstraction (and application), a variable that is bound to a polytype needs tmvar
+\label{3elab}
+The elaboration of a HM to System F is presented highlighted in \fref{hmtyinf}. Notice the rule \textsc{T-Var}: because System F has explicit type abstraction (and application), a variable that is bound to a polytype is applied type variables to that these are later substituted by the appropriate types.
 
 For lambda abstractions, its variable needs to be annotated with the correct System F type. Because in a HM abstraction this variable is necessarily assigned a monotype (otherwise the type of the abstraction would not be well formed), and there is bijection between HM monotypes and System F monotypes, the elaboration of the type is not made explicit. The elaboration of an application is simply the application of the elaborations of its subterms. A similar reasoning applies for $let$ and $case$ expressions.
 %\subsubsection{Building up the constraints}

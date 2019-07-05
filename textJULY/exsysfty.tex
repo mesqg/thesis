@@ -53,7 +53,7 @@
   
   \highlight{\inferrule*[right=T-Let]
   { \tyEnv, \tmVar:\typeF_1 \vdash_{tm} \term_1 : \typeF_1 \\ \tyEnv, \tmVar:\typeF_1 \vdash_{ty} \term_2 : \typeF_2\\ \tyEnv \vdash_{ty} \typeF_1\\ \tmVar \notin dom(\tyEnv)}
-  { \tyEnv \vdash_{tm} \mathit{\texttt{let }} \tmVar : \typeF = \term \mathit{\texttt{ in}} : \typeF_2}}
+  { \tyEnv \vdash_{tm} (\mathit{\texttt{let }} \tmVar : \typeF_1 = \term \mathit{\texttt{ in }} \term_2 ): \typeF_2}}
   \\[5mm]
   
   \highlight{\inferrule*[right=T-Case]

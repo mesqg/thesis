@@ -17,7 +17,7 @@
              {\term_1 \rightarrow \term_1'}
              {\term_1 \, \term_2 \rightarrow \term_1' \, \term_2}
   \quad \quad
-  \inferrule*[right=E-AppAbs]{ }{(\lambda\tmVar:\type.\term_1)\,\term_2 \rightarrow [\term_2/\tmVar]\term_1}$
+  \inferrule*[right=E-AppAbs]{ }{(\lambda\tmVar:\type.\term_1)\,\term_2 \rightarrow [\tmVar\mapsto \term_2]\term_1}$
 
  
 \end{array}
