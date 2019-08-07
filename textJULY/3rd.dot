@@ -1,5 +1,0 @@
-digraph G {
-CHF -> EUR;
-DKK -> EUR;
-EUR -> USD;
-}

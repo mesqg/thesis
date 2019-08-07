@@ -12,7 +12,7 @@ implicit j : TyA ~> TyC = \x. C1
 implicit k : TyC ~> TyD = \x. D
 implicit l : TyB ~> TyE = \x. E
 implicit s : TyS ~> TyD = \x. D
-implicit r : TyS ~> TyC = \x. C2
+--implicit r : TyS ~> TyC = \x. C2
   
 class Cls a :: * where
   f :: a -> a -> a -> a
@@ -27,4 +27,4 @@ instance Cls TyC where
 -- | Program expression
 f A B1 S-- local implicit declarations
   
-:*: TyC
+:*: TyD

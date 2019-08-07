@@ -1,4 +1,0 @@
-digraph G {
-DKK -> EUR;
-a -> EUR;
-}

@@ -23,6 +23,5 @@ instance Cls TyC where
 
 -- | Program expression
 f A B1 S-- local implicit declarations
-
-
-
+  
+:*: TyC

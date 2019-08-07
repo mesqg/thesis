@@ -1,6 +1,0 @@
-digraph G {
-CHF -> EUR ;
-DKK -> EUR;
-EUR -> USD;
-x [label="Wallet a\n -> Wallet b"]
-}

@@ -1,7 +1,0 @@
-digraph G {
-CHF -> EUR [label = "ax1"];
-EUR -> USD [label = "ax3"];
-DKK -> EUR [label = "ax2"];
-DKK -> ZWD [label = "ax4"];
-ZWD -> USD [label = "ax5"];
-}
