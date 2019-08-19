@@ -295,11 +295,11 @@ pTerm  =  pAppTerm
 
 pIConv :: PsM PsIConv          
 pIConv = ICC
-  <$> pTmVar--pIConv
+  <$> pTerm--pIConv
   <*  symbol ":"
   <*> pPolyConvTy
-  <*  symbol "="
-  <*> pTerm
+  -- <*  symbol "="
+  -- <*> pTerm
   
 -- | Parse a pattern
 pPat :: PsM PsPat

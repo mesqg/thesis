@@ -392,12 +392,12 @@ rnIConvDecl (IConvD i) = do
   return (IConvD ni)
 
 rnIConv :: PsIConv -> RnM RnIConv
-rnIConv (ICC name pct@(PCT _ psPairs _) exp) = do
-  rn_cnv <- rnTmVar name
+rnIConv (ICC exp pct@(PCT _ psPairs _)) = do
+  -- rn_cnv <- rnTmVar name
   rn_ty@(PCT _ rnPairs _)        <- rnPolyConvTy pct
   let (psVars,rnVars) = (map fst psPairs, map fst rnPairs)
   rn_exp      <- extendCtxTmsM psVars rnVars (rnTerm exp)
-  return (ICC rn_cnv rn_ty rn_exp)
+  return (ICC rn_exp rn_ty)
   
 
 -- | Rename a Tprogram

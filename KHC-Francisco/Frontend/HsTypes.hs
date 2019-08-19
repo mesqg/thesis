@@ -135,7 +135,7 @@ data Term a = TmVar (HsTmVar a)                   -- ^ Term variable
             | TmLet (HsTmVar a) (Term a) (Term a) -- ^ Letrec var = term in term
             | TmCase (Term a) [HsAlt a]           -- ^ case e of { ... }
 
-data (IConv a) = ICC (HsTmVar a) (PolyConvTy a) (Term a) --TODO USE THIS for ICONVD
+data (IConv a) = ICC (Term a) (PolyConvTy a) 
 type PsIConv = IConv Sym
 type RnIConv = IConv Name
 -- | Parsed/renamed term
@@ -809,10 +809,9 @@ instance (Symable a, PrettyPrint a) => PrettyPrint (IConvDecl a) where
 
 -- | Pretty print Implicit Conversion declarations
 instance (Symable a, PrettyPrint a) => PrettyPrint (IConv a) where
-  ppr (ICC iname x iconv)
-    = hang (colorDoc green (text "implicit") <+> ppr iname <+> darrow <+> ppr iconv )
-           2
-           (ppr (symOf iname))
+  ppr (ICC iconv x)
+    =  ppr iconv
+           
   needsParens _ = False
   
   -- | Pretty print class declarations

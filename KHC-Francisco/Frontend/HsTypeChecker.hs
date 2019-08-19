@@ -28,7 +28,7 @@ import Utils.Utils
 import Utils.Errors
 import Utils.Trace
 import Utils.ListT
-
+import Debug.Trace
 import Control.Monad.Writer
 import Control.Monad.Reader
 import Control.Monad.State
@@ -480,12 +480,11 @@ elabTmLet x tm1 tm2 = do
 
   -- | Elaborate a let binding (monomorphic, recursive)
 elabTmLocImp :: RnIConv -> RnTerm -> GenM (RnMonoTy, FcTerm)
-elabTmLocImp (ICC name pct@(PCT vars pairs monoty@(MCT a b)) exp) tm =
+elabTmLocImp (ICC exp pct@(PCT vars pairs monoty@(MCT a b))) tm =
  case a of
-    (TyVar x) -> throwError ("invalid implicit "++ (render$ppr name)++ "Type variables can't be the rhs of the final convmonoty")
+    (TyVar x) -> throwError ("invalid locimp: Type variables can't be the rhs of the final convmonoty")
     otherwise -> do
       let (rnPHs,types) = aux pairs
-    -- probably TODO in elabTermWithSig
       pair <- ask
       let ft = snd (snd pair)
       elab_exp <- emptyIT (extendTCs rnPHs types (liftGenM (elabTermWithSig [] ft exp (monoTyToPolyTy (mkRnArrowTy [a] b)))) )
@@ -1251,18 +1250,17 @@ elabHsTySubst = mapSubM (return . rnTyVarToFcTyVar) elabMonoTy
 --plenty TO DO's... ugly baked in things. 
 -- GJ: Uhm... We'll go through this function together in the next meeting...
 elabIConvDecl :: RnIConvDecl -> TcM (ConvAxiom)
-elabIConvDecl (IConvD i@(ICC name pct@(PCT vars pairs monoty@(MCT a b)) exp)) =
+elabIConvDecl (IConvD i@(ICC exp pct@(PCT vars pairs monoty@(MCT a b)) )) =
   case a of
-    (TyVar x) -> throwError ("invalid implicit "++ (render$ppr name)++ "Type variables can't be the rhs of the final convmonoty")
+    (TyVar x) -> throwError ("invalid implicit: Type variables can't be the rhs of the final convmonoty")
     otherwise -> do
      pair <- ask
      let ft = snd (snd pair)
-     --make sure tyVars are fine
      let (rnPHs,types) = aux pairs
      elab_exp <- emptyIT (extendTCs rnPHs types (case vars of
                                           []         -> elabTermWithSig (labelOf vars) ft exp (monoTyToPolyTy (mkRnArrowTy [a] b))
                                           otherwise  -> elabTermWithSig (labelOf vars) ft exp (monoTyToPolyTy (mkRnArrowTy [a] b))
-                                       )) --TODO: why dropsuper here?
+                                       ))
      let ext_it = case pairs of
            []        -> (MCA monoty elab_exp)
            otherwise -> (PCA pct  elab_exp)
@@ -1316,7 +1314,7 @@ elabTermSimpl theory tm = do
   let untouchables = nub (ftyvsOf refined_mono_ty)
 
   ev_subst <- entailTcM untouchables theory refined_wanted_ccs --refined_wanted_ccs -- Francisco: No unresolved type classes.
-  
+  trace (render$ ppr ev_subst) (return ())
   let new_mono_ty = refined_mono_ty
   -- Elaborate the term
   let full_fc_tm = --fcTmTyAbs fc_as $ fcTmAbs dbinds $
