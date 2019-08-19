@@ -30,7 +30,6 @@ import Control.Arrow (second)
 data RnEnv = RnEnv { rn_env_cls_info   :: AssocList PsClass   RnClsInfo
                    , rn_env_dc_info    :: AssocList PsDataCon HsDataConInfo
                    , rn_env_tc_info    :: AssocList PsTyCon   HsTyConInfo
-                   -- TODO, rn_env_conv_info  :: AssocList PsIConv   HsIConvInfo
                    }
 
 instance PrettyPrint RnEnv where
@@ -384,7 +383,7 @@ rnDataDecl (DataD tc as dcs) = do
 
   return (DataD rntc (rnas |: map kindOf rnas) rndcs)
 
-  -- | TODO! Rename an implicit declaration
+
 rnIConvDecl :: PsIConvDecl -> RnM RnIConvDecl
 rnIConvDecl (IConvD i) = do
     -- Rename iconvthe class name

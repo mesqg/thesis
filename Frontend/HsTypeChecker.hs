@@ -2,10 +2,7 @@
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-} -- George says: God I hate this flag
---TODO: change the way implicits get into the expression: don't absorb terms
---TODO: merge the second step into something pretty: merge mustsTo, pathsFromTo,checkUniqueness and reachability
---TODO: why doesnt f return the ycs's?
---TODO: make sure the type variables from typing environment (f :: a -> a) are untouchables when unifying
+
 module Frontend.HsTypeChecker (hsElaborate) where
 
 import Frontend.HsTypes
@@ -440,7 +437,7 @@ elabTmApp tm1 tm2 = do
   storeEqCs [mkRnArrowTy [b] a :~: ty1]
   --storeEqCs [mkRnArrowTy [b] a :~: ty1]
   storeYCs $ constrYCs j ty2 b fc_tm2 (fst (snd pair))
-  (CS e y an) <- get -- TODO? ugly 
+  (CS e y an) <- get 
   put (CS e y (substInAnnClsCs (ty2 |-> b) an))
   return (a, FcTmApp fc_tm1 (FcTmVar j)) -- add fresh FcTmVar in between
 
@@ -654,7 +651,7 @@ auxSolveY untch ycs = entailYcs [] ycs
    rightEntailsBacktracQ beens yct@(YCt _ _ _ it) = 
      liftSolveM (snocListChooseM (it:>CV_Nil) left_entail) >>= SolveM . selectListT
      where
-       left_entail conv_axiom = leftEntailsIConv beens conv_axiom yct --TODO!
+       left_entail conv_axiom = leftEntailsIConv beens conv_axiom yct 
 
    leftEntailsIConv :: [RnMonoTy] -> ConvAxiom -> YCt
                -> TcM (Maybe (YCs, FcTmSubst,HsTySubst,[RnMonoTy]))
@@ -720,7 +717,7 @@ prepare = aux_p SN
      where
        aux_p ycs (PCA (PCT v (x@(var,mct):xs) m) exp) it =
          let j = rnTmVarToFcTmVar var in     
-         let yct  = YCt j mct FcDummyTerm it in --TODO? not pretty but not the worst?
+         let yct  = YCt j mct FcDummyTerm it in 
          aux_p (ycs:>yct) (PCA (PCT v xs m) exp) it
        aux_p ycs (PCA (PCT _ [] m) exp) _ = return ycs
 
@@ -819,7 +816,7 @@ f ycs = let subst1 = (step1 ycs ycs) in
     return$foldr intersect h' o' 
 
 
---TODO! Possibility of b being type var...
+
 onestep :: RnMonoTy->ConvAxiom->ImplicitTheory -> TcM (Maybe [RnMonoTy])
 onestep at (MCA (MCT a b) exp) _
  | Right ty_subst <- unify [] [at :~: a] =
@@ -843,7 +840,7 @@ onestep at ca@(PCA pct@(PCT vars pairs mono@(MCT a b)) exp) it
 
   | otherwise = return Nothing   
 
---TODO! Think its done somewhere else
+
 sat :: ConvAxiom -> ImplicitTheory -> HsTySubst -> TcM Bool
 sat ca it sub = do
         ycs <- prepare ca it
@@ -1179,7 +1176,6 @@ instMethodTy typat poly_ty = constructPolyTy (new_as, new_cs, new_ty)
     new_as     = as
     new_cs     = substInClsCs subst cs
     new_ty     = substInMonoTy subst ty
--- TODO! duplicated only to fit elabIConv
 -- GJ: I don't understand. Why is this duplicated?
 instMethodTy2 :: RnMonoTy -> RnPolyTy -> RnPolyTy
 instMethodTy2 typat poly_ty = constructPolyTy (new_as, new_cs, new_ty)
@@ -1340,7 +1336,7 @@ elabProgram :: RnProgram
 
 -- Elaborate the program expression
 elabProgram (PgmExp tm) = do
-  --TODO theres probably a better way
+
   pair <- ask
   let theory = snd (snd pair)
   (ty, fc_tm) <- elabTermSimpl (ftDropSuper theory) tm

@@ -191,14 +191,9 @@ pDataCon = HsDC <$> upperIdent <?> "a data constructor"
 pMonoConvTy :: PsM PsMonoConvTy
 pMonoConvTy = MCT <$>  pPrimTy <* symbol "~>" <*>  pPrimTy
 
-{-- | Parse a qualified conversion type -- Type Well-formedness says 1 constraint
-pQualConvTy :: PsM PsQualConvTy
-pQualConvTy =
-  try (QCTC <$> pMonoConvTy <* symbol "=>" <*> pQualConvTy) <|> QCTS <$> pMonoConvTy
--}
 pPolyConvTy :: PsM PsPolyConvTy
 pPolyConvTy =
-  --PCT <$ symbol "forall" <*> sepBy1 (parens pTyVarWithKind) (symbol ",") <* dot <*> sepBy1 pMonoConvTy (symbol ",") <* (symbol "=>") <*> pMonoConvTy
+
   PCT <$> many (parens pTyVarWithKind) <* (optional dot) <*> many (parens (pTmVar <&> (symbol ":" *> pMonoConvTy)))  <* (optional (symbol "=>")) <*> pMonoConvTy
   
 
@@ -289,17 +284,14 @@ pTerm  =  pAppTerm
           <*> pTerm
           <*  symbol "of"
           <*> some (indent pAlt)
-          -- <*> (\x -> do
-          --         p <- x
-          --         return [p]) pAlt --some (indent pAlt)
+
 
 pIConv :: PsM PsIConv          
 pIConv = ICC
   <$> pTerm--pIConv
   <*  symbol ":"
   <*> pPolyConvTy
-  -- <*  symbol "="
-  -- <*> pTerm
+
   
 -- | Parse a pattern
 pPat :: PsM PsPat

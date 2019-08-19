@@ -1,6 +1,6 @@
-# KU Leuven Haskell Compiler, Extended with Implicit Type Conversions (ITC) #
+# KU Leuven Haskell Compiler (KHC) Extended with Implicit Type Conversions (ITC) -> KHC+ITC#
 
-This repository contains a modified version of the KU Leuven Haskell Compiler that supports ICTs. This is a simple Haskell compiler featuring type inference with translation to System F.
+This repository contains a modified version of the KU Leuven Haskell Compiler that supports ITCs. This is a simple Haskell compiler featuring type inference with translation to System F.
 The compiler is constructed at KU Leuven, under the programming languages group of [prof Tom Schrijvers](https://people.cs.kuleuven.be/~tom.schrijvers/).
 The original KHC can be found at [prototype implementation](https://github.com/gkaracha/quantcs-impl).
 
